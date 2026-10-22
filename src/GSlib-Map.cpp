@@ -65,6 +65,19 @@ void Tile_Anim::update(float dt)
 
 
 
+
+void Tileset::destroyAtlasTexture()
+{
+	if(m_atlas)
+	{
+		gs::destroyTexture(m_atlas);
+		m_atlas = nullptr;
+	}
+}
+
+
+
+
 bool Tileset::load(Renderer* ren, const std::string& pth, const Tileset_Loading_Args& tl_args)
 {
 	Tileset_Loading_Out_Info info; //Pour récupérer certaines infos sur l'atlas produit.
@@ -105,7 +118,7 @@ void Tileset::load__finalStep(Texture* new_atlas, const Tileset_Loading_Args& tl
 	m_atlas = new_atlas;
 	m_tile_src_size = tl_args.tile_src_size;
 	m_number_of_columns = info.nb_of_columns;
-	m_tile_src_padding = info.used_padding;	
+	m_tile_src_padding = info.used_padding;
 }
 
 
@@ -184,7 +197,7 @@ Texture* Tileset::genAtlas(Renderer* ren, Surface* src_img, const Tileset_Loadin
 		return out_atlas_texture;
 	}
 
-	
+
 	int padding_to_add = tl_args.src_padding_to_add;
 	if(padding_to_add > GS_TILESET_ATLAS_MAX_SRC_PADDING)
 	{
@@ -194,19 +207,19 @@ Texture* Tileset::genAtlas(Renderer* ren, Surface* src_img, const Tileset_Loadin
 
 
 	//Calcul de la taille de l'atlas dont le padding est pris en compte ----------------------------
-	
+
 	//D'abord, on détermine combien il y a de tuile effectives (complètes) dans l'image reçue
 	Vec2i src_img_size = gs::getSurfaceSize(src_img).to<int>();
 	Vec2i nb_of_tiles = src_img_size / tl_args.tile_src_size; // Note : les zéros sont prévenus par les vérifications plus haut.
 	Vec2i new_cell_size = tl_args.tile_src_size + Vec2i(padding_to_add*2, padding_to_add*2); //On rajoute à la taille d'une tuile deux fois le padding car le padding est sur le côté min, et, sur le côté max.
 
 	Vec2i new_atlas_size = new_cell_size * nb_of_tiles; //'new_cell_size' est l'ensemble de l'espace occupé par une tuile dans le nouvel atlas (taille de la tuile + 2*padding).
-	
+
 
 	//Création du buffer image du nouvel atlas -----------------------------------------------------
 
 	Surface* atlas_buf = gs::createSurface(new_atlas_size, {0,0,0,0});
-	
+
 	if(not atlas_buf)
 	{
 		gs::lastError("from 'Tileset::genAtlas(src_img)' [when creating atlas buffer] : ", gs::lastError());
@@ -215,7 +228,7 @@ Texture* Tileset::genAtlas(Renderer* ren, Surface* src_img, const Tileset_Loadin
 
 
 	//Copie des tuiles dans le buffer ---------------------------------------------------------------
-	
+
 	for(int row = 0; row < nb_of_tiles.y; row++) //Parcours des tuiles
 	for(int column = 0; column < nb_of_tiles.x; column++)
 	{
@@ -271,7 +284,7 @@ Texture* Tileset::genAtlas(Renderer* ren, Surface* src_img, const Tileset_Loadin
 			border_src.x = src_rect.x;
 			border_dest.x = dest_rect.x -padding_to_add;
 			gs::drawSurfaceToSurface(src_img, &border_src, atlas_buf, &border_dest);
-		}	
+		}
 	}
 
 
@@ -641,24 +654,28 @@ Map::Map(Renderer* ren, Vec2i dest_bloc, std::string title, short idle_value)
 : 	m_ren(ren), m_destBLOC_custom_w_h(dest_bloc), m_title(title), m_idle_value(idle_value), m_is_init(true)
 {
 	/*Constructeur le plus complet en terme de renseignements*/
+
+	m_destBLOC_custom_w_h.x = GetMax(1, m_destBLOC_custom_w_h.x);
+	m_destBLOC_custom_w_h.y = GetMax(1, m_destBLOC_custom_w_h.y);
 }
 
 
 
-Map::Map()
-{/*Constructeur tout par défaut.*/}
 
 
 
 Map::Map(Vec2i dest_bloc, std::string title, short idle_value)
 : 	m_destBLOC_custom_w_h(dest_bloc), m_title(title), m_idle_value(idle_value), m_is_init(true)
-{}
+{
+	m_destBLOC_custom_w_h.x = GetMax(1, m_destBLOC_custom_w_h.x);
+	m_destBLOC_custom_w_h.y = GetMax(1, m_destBLOC_custom_w_h.y);
+}
 
 
 
 Map::Map(Renderer* ren)
 : m_ren(ren)
-{/*Constructeur avec seule la gs::Game. */}
+{}
 
 
 
@@ -671,6 +688,9 @@ bool Map::init(Renderer* ren, Vec2i dest_bloc, std::string title, short idle_val
 	m_title = title;
 	setIdleValue(idle_value, true);
 	m_is_init = true;
+
+	m_destBLOC_custom_w_h.x = GetMax(1, m_destBLOC_custom_w_h.x);
+	m_destBLOC_custom_w_h.y = GetMax(1, m_destBLOC_custom_w_h.y);
 
 	return true;
 }
@@ -886,12 +906,7 @@ void Map::clearTilesets()
 {
 	for(auto& [tileset_id, tileset] : m_tilesets)
 	{
-		if(tileset.m_atlas)
-		{
-			gs::destroyTexture(tileset.m_atlas);
-			tileset.m_atlas = nullptr;
-		}
-
+		tileset.destroyAtlasTexture();
 		tileset.animated_tiles.clear();
 	}
 }
@@ -1461,12 +1476,11 @@ bool Map::drawLayer(int layer_index, Vec2f offset, float brightness, Rect area)
 {
 	//'offset' = décalage sur l'écran.
 
-	std::string error_msg_begin = gs::str("||Error|| in 'gs::Map::drawLayer()' [layer_index is ")+std::to_string(layer_index)+std::string("] of '") + m_title;
-	std::string warning_msg_begin = gs::str("||Warning|| in 'gs::Map::drawLayer()' [layer_index is ")+std::to_string(layer_index)+std::string("] of '") + m_title;
+	std::string info_msg_begin = gs::str("'gs::Map::drawLayer()' [layer_index is ")+std::to_string(layer_index)+std::string("] of '") + m_title;
 
 	if(isInvalidLayerIndex(layer_index))
 	{
-		gs::lastError(error_msg_begin + gs::str("', given layer index doesn't exist."));
+		gs::lastError("||Warning|| in ", info_msg_begin + gs::str("', given layer index doesn't exist."));
 		return false;
 	}
 
@@ -1475,7 +1489,7 @@ bool Map::drawLayer(int layer_index, Vec2f offset, float brightness, Rect area)
 
 	if(not isRenValid())
 	{
-		gs::lastError(warning_msg_begin + gs::str("', cannot draw : missing a valid 'Renderer*'"));
+		gs::lastError("||Warning|| in ", info_msg_begin + gs::str("', cannot draw : missing a valid 'Renderer*'"));
 		return false;
 	}
 
@@ -1483,7 +1497,7 @@ bool Map::drawLayer(int layer_index, Vec2f offset, float brightness, Rect area)
 	const Tileset& tileset = getTileset(m_layers.at(layer_index).m_tileset_id, tileset_is_ok);
 	if(not tileset_is_ok or not tileset.m_atlas)
 	{
-		gs::lastError(warning_msg_begin + gs::str("', cannot draw : missing a valid tileset. Current layer [index==")+std::to_string(layer_index)+", tileset_id=="
+		gs::lastError("||Warning|| in ", info_msg_begin + gs::str("', cannot draw : missing a valid tileset. Current layer [index==")+std::to_string(layer_index)+", tileset_id=="
 			+std::to_string(m_layers.at(layer_index).m_tileset_id)+"] ");
 		return false;
 	}
@@ -1575,7 +1589,7 @@ bool Map::drawLayer(int layer_index, Vec2f offset, float brightness, Rect area)
 	}
 
 	FRect src, dest;
-	src.w=tileset.getTileSrcSize().x; src.h=tileset.getTileSrcSize().y; 
+	src.w=tileset.getTileSrcSize().x; src.h=tileset.getTileSrcSize().y;
 	dest.w = dest_bloc_w; dest.h = dest_bloc_h;
 
 	if(not zero_brightness)
@@ -1610,9 +1624,9 @@ bool Map::drawLayer(int layer_index, Vec2f offset, float brightness, Rect area)
 				src.y = tile_src_pos.y;
 
 				bool res = drawTile(m_ren, nullptr, tileset.m_atlas, src, dest, false); //false pour dessiner sur la target courante et pas forcément sur le render de base.
-				
+
 				if(not res)
-					gs::lastError("from 'Map::drawLayer()' : ", gs::lastError());
+					gs::lastError("from ", info_msg_begin + " : ", gs::lastError());
 			}
 
 			mapX ++;
@@ -2556,13 +2570,13 @@ bool Map::INTERNAL_USE_check_tile_access_is_ok(std::string function_name, int x,
 {
 	if(isInvalidLayerIndex(layer_index))
 	{
-		gs::lastError(gs::str("||Error|| in function '")+function_name+gs::str("' of '")+m_title+gs::str("', given layer index doesn't exist. [given layer : ")+std::to_string(layer_index)+gs::str("]. "));
+		gs::lastError(gs::str("||Warning|| in function '")+function_name+gs::str("' of '")+m_title+gs::str("', given layer index doesn't exist. [given layer : ")+std::to_string(layer_index)+gs::str("]. "));
 		return false;
 	}
 
 	if(not m_layers[layer_index].m_is_init)
 	{
-		gs::lastError(gs::str("||Error|| in function '")+function_name+gs::str("' of '")+m_title+gs::str("', this layer seems not yet init. [given layer : ")+std::to_string(layer_index)+gs::str("]. "));
+		gs::lastError(gs::str("||Warning|| in function '")+function_name+gs::str("' of '")+m_title+gs::str("', this layer seems not yet init. [given layer : ")+std::to_string(layer_index)+gs::str("]. "));
 		return false;
 	}
 
@@ -2571,12 +2585,12 @@ bool Map::INTERNAL_USE_check_tile_access_is_ok(std::string function_name, int x,
 
 	if(x< 0 or x >= limit_x)
 	{
-		lastError(gs::str("||Error|| in function '")+function_name+gs::str("' of '")+m_title+gs::str("', given parameter `x' is invalid for layer ")+std::to_string(layer_index)+gs::str(". [given x : ")+std::to_string(x)+gs::str("]. "));
+		lastError(gs::str("||Warning|| in function '")+function_name+gs::str("' of '")+m_title+gs::str("', given parameter `x' is invalid for layer ")+std::to_string(layer_index)+gs::str(". [given x : ")+std::to_string(x)+gs::str("]. "));
 		return false;
 	}
 	if(y< 0 or y >= limit_y)
 	{
-		lastError(gs::str("||Error|| in function '")+function_name+gs::str("' of '")+m_title+gs::str("', given parameter `y' is invalid for layer ")+std::to_string(layer_index)+gs::str(". [given y : ")+std::to_string(y)+gs::str("]. "));
+		lastError(gs::str("||Warning|| in function '")+function_name+gs::str("' of '")+m_title+gs::str("', given parameter `y' is invalid for layer ")+std::to_string(layer_index)+gs::str(". [given y : ")+std::to_string(y)+gs::str("]. "));
 		return false;
 	}
 
@@ -3018,22 +3032,22 @@ bool Map::hitCollisionTile(FRect ent_rect, int layer_index, std::vector<short>* 
 }
 
 
-bool Map::willHitCollisionTile(FRect ent_rect, Vec2f total_pixel_incr, int layer_index, Vec2<float*> dist_before_hit__out,
+bool Map::willHitCollisionTile(FRect ent_rect, Vec2f total_pixel_incr, int layer_index, Vec2<float*> remaining_before_hit__out,
                                     std::vector<short>* out__tile_vals, Rect area)
 {
     //Recyclage d'un ancien code.
 
 	/*
-		total_pixel_incr_xy sont : de combien réellement la position va changer sur tel axe dans la frame. E.g 2.6 pixel en x, 1.7 en y.
-        (Biensur allieurs, pour trouver à quelle pixel cela correspond on retire la partie décimale. Utiliser des float pour les pixels
+		total_pixel_incr est : de combien réellement la position va changer sur tel axe dans la frame. E.g 2.6 pixel en x, 1.7 en y.
+		(Bien sûr, ailleurs, pour trouver à quelle pixel cela correspond on retire la partie décimale. Utiliser des float pour les pixels
 		permet de bouger de moins d'un pixel par frame, permettant des pouvement plus lents). Ainsi l'utilisateur à le choix de mettre un décalge
 		qui est la vitesse de son personnage, ou de faire correspondre cette vitesse avec le delta time par une multiplication, ou de mettre n'importe quelle valeur
-		que son coeur désir.
+		que son coeur désire.
 		Le tout ici est d'avoir 'de combien' précisément il va bouger de pixels.
 
 		Par ailleurs cette fonction ne traite pas la trajectoire, seulement la destination : si une collision se trouve
-		entre le body et la destination mais que la destination est n'est pas une collision, le retour sera 'false'.
-		Autrement dit attention au total_pixel_incr_xy > à la taille du bloc de destination.
+		entre l'entité et la destination mais que la destination est n'est pas une collision, le retour sera 'false'.
+		Autrement dit attention au total_pixel_incr > à la taille d'une tuile dans la map.
 	*/
 
 
@@ -3049,74 +3063,60 @@ bool Map::willHitCollisionTile(FRect ent_rect, Vec2f total_pixel_incr, int layer
 	}
 
 
-	//Calculs de la distance restante entre le gs::Body et la tuile qui va être cognée.
+	//Calculs de la distance restante entre l'entité et la tuile qui va être cognée.
 	if(hit) // = oui collision si mouvement efféctué.
 	{
-		short dest_bloc_w = getDestBLOCW();
+		short dest_bloc_w = getDestBLOCW(); //Taille d'une tuile dans la map
 		short dest_bloc_h = getDestBLOCH();
 
-		if(dist_before_hit__out.x != nullptr)
+		if(remaining_before_hit__out.x != nullptr)
 		{
 			bool go_to_left = (total_pixel_incr.x < 0 ? true : false);
 
-            float body_pos_x = std::floor(ent_rect.x);
+            float ent_pos_x = ent_rect.x;
 
 			if(not go_to_left)
-                body_pos_x += ent_rect.w;	//pour prendre en compte son côté droit plutôt
+                ent_pos_x += ent_rect.w;	//pour prendre en compte son côté droit plutôt
 
-			int collision_tile_pos_x = static_cast<int>(body_pos_x + total_pixel_incr.x);
+			int collision_tile_pos_x = int(ent_pos_x + total_pixel_incr.x);
 				collision_tile_pos_x /= dest_bloc_w;	//pour trouver la colonne de tuile correspondante
 				collision_tile_pos_x *= dest_bloc_w;	//pour trouver le premier pixel correspondant à cette colonne
 
 			if(go_to_left)
-			{
-				collision_tile_pos_x += dest_bloc_w;	//pour décaler vers la droite de cette colonne puis que l'on va conger sa droite
-				*dist_before_hit__out.x = body_pos_x - static_cast<float>(collision_tile_pos_x);
-			}
-			else
-				*dist_before_hit__out.x = static_cast<float>(collision_tile_pos_x) - body_pos_x;
+				collision_tile_pos_x += dest_bloc_w;	//pour considérer la droite de cette tuile, puisque l'on va cogner sa droite
 
-			if(*dist_before_hit__out.x < 0 or total_pixel_incr.x == 0)
-				*dist_before_hit__out.x = 0.f;
-
+			*remaining_before_hit__out.x = float(collision_tile_pos_x) - ent_pos_x;
 		}
 
 
-		if(dist_before_hit__out.y != nullptr)
+		if(remaining_before_hit__out.y != nullptr)
 		{
 			bool go_to_up = (total_pixel_incr.y < 0 ? true : false);
 
-            float body_pos_y = std::floor(ent_rect.y);
+            float ent_pos_y = ent_rect.y;
 
 			if(not go_to_up)
-                body_pos_y += ent_rect.h;	//pour prendre en compte son côté inférieur plutôt
+                ent_pos_y += ent_rect.h;	//pour prendre en compte son côté inférieur plutôt
 
-			int collision_tile_pos_y = static_cast<int>(body_pos_y + total_pixel_incr.y);
+			int collision_tile_pos_y = int(ent_pos_y + total_pixel_incr.y);
 				collision_tile_pos_y /= dest_bloc_h;	//pour trouver la ligne de tuile correspondante
 				collision_tile_pos_y *= dest_bloc_h;	//pour trouver le premier pixel correspondant à cette ligne
 
 			if(go_to_up)
-			{
-				collision_tile_pos_y += dest_bloc_h;	//pour décaler vers le bas de cette ligne puis que l'on va conger son bas
-				*dist_before_hit__out.y = body_pos_y - static_cast<float>(collision_tile_pos_y);
-			}
-			else
-				*dist_before_hit__out.y = static_cast<float>(collision_tile_pos_y) - body_pos_y;
+				collision_tile_pos_y += dest_bloc_h;	//pour considérer le bas de cette tuile puisque l'on va cogner sur sa partie basse
 
-			if(*dist_before_hit__out.y < 0 or total_pixel_incr.y == 0)
-				*dist_before_hit__out.y = 0.f;
-
+			*remaining_before_hit__out.y = float(collision_tile_pos_y) - ent_pos_y;
 		}
 	}
 	else
 	{
-		if(dist_before_hit__out.x != nullptr)
-			*dist_before_hit__out.x = 0.f;
+		if(remaining_before_hit__out.x != nullptr)
+			*remaining_before_hit__out.x = 0.f;
 
-		if(dist_before_hit__out.y != nullptr)
-			*dist_before_hit__out.y = 0.f;
+		if(remaining_before_hit__out.y != nullptr)
+			*remaining_before_hit__out.y = 0.f;
 
-		// 0 puisqu'il n'y a pas eu de collision en vu.
+		// Le 0 ici n'est pas représentatif, aucune valeur ne le serait le long du déplacement, car il n'y a pas de collision. C'est une valeur par défaut.
 	}
 
 	return hit;

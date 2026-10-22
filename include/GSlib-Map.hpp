@@ -27,7 +27,7 @@ Mises à jour (tout n'est pas mentionné) :
 	#include "GSlib.hpp"
 	#include <unordered_map>
 
-	
+
 
 
 
@@ -96,12 +96,15 @@ struct Tileset_Loading_Args
 		int used_padding=0;
 	};
 
+
 class Tileset
 {
 	friend Map;
 
 	public:
-		//~Tileset(); !!! Ne pas destroy "'m_atlas'" avec 'Tileset', à laisser être gérée par 'Map', ou par l'utilisateur (s'il utilise 'Tileset' de son côté). En effet, dans mon implémentation de 'Map', il y a apparition de buffer de 'Tileset', ainsi détruire la texture à la destruction de 'Tileset' ferait que le 'Tileset' temporaire détruirait la texture fraichement préparée.
+		//~Tileset(); !!! Ne pas destroy "'m_atlas'" avec 'Tileset' - à laisser être gérée par 'Map', ou par l'utilisateur (s'il utilise 'Tileset' de son côté). En effet, dans mon implémentation de 'Map', il y a apparition de buffer de 'Tileset', ainsi détruire la texture à la destruction de 'Tileset' ferait que le 'Tileset' temporaire détruirait la texture fraichement préparée.
+		void destroyAtlasTexture(); //Pour une destruction manuelle de la texture
+
 		bool load(Renderer* ren, const std::string& pth, const Tileset_Loading_Args& tl_args);
 		bool load(Renderer* ren, Surface* src_img, const Tileset_Loading_Args& tl_args);
 	  	static Texture* genAtlas(Renderer* ren, const std::string& pth, const Tileset_Loading_Args& tl_args, Tileset_Loading_Out_Info* out=nullptr);
@@ -117,14 +120,13 @@ class Tileset
 		void load__finalStep(Texture* new_atlas, const Tileset_Loading_Args& tl_args, const Tileset_Loading_Out_Info& info);
 
 	protected:
-		
+
 		Texture* m_atlas=nullptr;
 		short m_number_of_columns=0; //Nombre de colonnes dans l'atlas - est déduit
 		Vec2i m_tile_src_size{1,1}; //En pixel - taille réelle d'une tuile dans l'atlas - n'est pas destiné à changer une fois l'atlas chargé
 		int m_tile_src_padding=1; //En pixel - padding (uniforme) extérieur d'une tuile, dans l'atlas. Exemple: si le padding vaut 1, alors les tuiles occupent un espace "taille+{2,2}", "taille" étant les dimensions réelles de la tuile, et {2,2} -> padding à gauche, à droite, et padding en haut, en bas.
 
 		std::unordered_map<short, Tile_Anim> animated_tiles; //Indique le tuiles animées, de ce tileset.
-
 };
 
 
@@ -295,7 +297,7 @@ class Map
 	  //Note: "bloc" == "tile size".
 
 		Map(Renderer* ren, Vec2i dest_bloc, std::string title="No_titled_map", short idle_value=-1);
-		Map();
+		Map()=default;
 		Map(Vec2i dest_bloc, std::string title="No_titled_map", short idle_value=-1);
 		Map(Renderer* ren);
 		bool init(Renderer* ren, Vec2i dest_bloc, std::string title="No_titled_map", short idle_value=-1);
@@ -312,7 +314,7 @@ class Map
 		bool setTilesetFromSurface(int tileset_id, Surface* atlas_surf, const Tileset_Loading_Args& tl_args);
 		bool setTileset_noOverwrite(int tileset_id, const std::string& pth, const Tileset_Loading_Args& tl_args);
 		bool setTilesetFromSurface_noOverwrite(int tileset_id, Surface* atlas_surf, const Tileset_Loading_Args& tl_args);
-		
+
 
 		//Note: Les animations des tuiles sont rattachées aux tilesets. Un tileset peut avoir des animations différentes d'un autres tileset.
 		bool addAnimtedTiles(int tileset_id, const std::vector<Tile_Anim>& animated_tiles, bool overwrite_existing_ones=true);
@@ -456,7 +458,7 @@ class Map
 
 		bool isCollisionTile(int x, int y, int layer_index, int* out__tile_val=nullptr);
 		bool hitCollisionTile(FRect ent_rect, int layer_index=-1, std::vector<short>* out__tile_vals=nullptr, Rect area={0,0,0,0}); // layer_index = -1 par défaut pour signifier de prendre le premier layer de collision (si présent)
-		bool willHitCollisionTile(FRect ent_rect, Vec2f total_pixel_incr, int layer_index=-1, gs::Vec2<float*> dist_before_hit__out={nullptr,nullptr}, std::vector<short>* out__tile_vals=nullptr, Rect area={0,0,0,0});
+		bool willHitCollisionTile(FRect ent_rect, Vec2f total_pixel_incr, int layer_index=-1, gs::Vec2<float*> remaining_before_hit__out={nullptr,nullptr}, std::vector<short>* out__tile_vals=nullptr, Rect area={0,0,0,0});
 
 		bool addCollisionTilesValues(int layer_index, std::vector<short> values);
 		bool removeCollisionTilesValues(int layer_index, std::vector<short> values);
