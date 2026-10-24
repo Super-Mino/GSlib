@@ -569,11 +569,6 @@ bool lastErrorAutomaticLog()
 }
 
 
-std::string str(const char* c_string)
-{
-	return std::string(c_string);
-}
-
 
 
 bool isInInterval_in_in(float min, float max, float val)
@@ -729,14 +724,14 @@ gs::Vec2f rotatePoint(float center_x, float center_y, float point_x, float point
 
 
 
-short sign(float val)
+int sign(float val)
 {
-	if(val < 0)
+	if(val < 0.f)
 		return -1;
 	return 1;
 }
 
-short sign(int val)
+int sign(int val)
 {
 	if(val < 0)
 		return -1;
@@ -1054,27 +1049,6 @@ float random(float min, float max) //uniforme
 }
 
 
-FRect frect(Rect rect)
-{
-	return FRect(
-		static_cast<float>(rect.x), static_cast<float>(rect.y),
-		static_cast<float>(rect.w), static_cast<float>(rect.h));
-}
-
-Rect rect(FRect rect)
-{
-	return Rect(
-		static_cast<int>(rect.x), static_cast<int>(rect.y),
-		static_cast<int>(rect.w), static_cast<int>(rect.h));
-}
-
-
-
-Rect rect(int x, int y, int w, int h)
-{
-	Rect _rect = {x, y, w, h};
-	return _rect;
-}
 
 
 FColor normalizeColor(FColor color_0_255)
@@ -1216,6 +1190,81 @@ Color color(FColor col) {return Color(col.r, col.g, col.b, col.a);}
 FColor fcolor(Color col) {return FColor(col.r, col.g, col.b, col.a);}
 
 
+//FColor fcolor(int r, int g, int b, int a=255);
+
+FColor fcolor(float r, float g, float b, float a) {return FColor(r,g,b,a);}
+
+FColor fcolor(uint32_t ucolor) {return fcolor(color(ucolor));} //RGBA
+
+
+uint32_t u32RGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+	uint32_t ucol;
+	uint8_t* ucol_ptr = (uint8_t*)(&ucol);
+	ucol_ptr[3] = r;
+	ucol_ptr[2] = g;
+	ucol_ptr[1] = b;
+	ucol_ptr[0] = a;
+	return ucol;
+}
+
+
+uint32_t u32RGBA(Color col) {return u32RGBA(col.r, col.g, col.b, col.a);}
+
+uint32_t u32ABGR(uint32_t rgba)
+{
+	uint8_t* ptr = (uint8_t*)(&rgba);
+	uint8_t r=ptr[3], g=ptr[2], b=ptr[1], a=ptr[0];
+
+	ptr[3] = a;
+	ptr[2] = b;
+	ptr[1] = g;
+	ptr[0] = r;
+
+	return rgba;
+}
+
+uint32_t u32RGBA(uint32_t abgr)
+{
+	uint8_t* ptr = (uint8_t*)(&abgr);
+	uint8_t a=ptr[3], b=ptr[2], g=ptr[1], r=ptr[0];
+
+	ptr[3] = r;
+	ptr[2] = g;
+	ptr[1] = b;
+	ptr[0] = a;
+
+	return abgr;
+}
+
+uint32_t u32RGBA(FColor col) {return u32RGBA(color(col));}
+
+uint8_t alphaByPercentage(float percent)
+{
+	float res = 255.0*percent;
+	if(res < 0) res = 0;
+	if(res > 255) res = 255;
+
+	return uint8_t(res);
+}
+
+
+
+FRect frect(Rect rect)
+{
+	return FRect(
+		static_cast<float>(rect.x), static_cast<float>(rect.y),
+		static_cast<float>(rect.w), static_cast<float>(rect.h));
+}
+
+Rect rect(FRect rect)
+{
+	return Rect(
+		static_cast<int>(rect.x), static_cast<int>(rect.y),
+		static_cast<int>(rect.w), static_cast<int>(rect.h));
+}
+
+Rect rect(int x, int y, int w, int h){Rect _rect = {x, y, w, h}; return _rect;}
 FRect frect(float x, float y, float w, float h) {return FRect(x,y,w,h);}
 Rect rect(Vec2i xy, Vec2i wh) {return Rect(xy.x, xy.y, wh.x, wh.y);}
 FRect frect(Vec2f xy, Vec2f wh) {return FRect(xy.x, xy.y, wh.x, wh.y);}
@@ -1241,75 +1290,31 @@ FRect scaleFRect(FRect rect, Vec2f scale) {return FRect(rect.x*scale.x, rect.y*s
 
 Vec2f getFRectCenter(FRect rect) {return Vec2f(rect.x+rect.w*0.5f, rect.y+rect.h*0.5f);}
 
-//FColor fcolor(int r, int g, int b, int a=255);
 
-FColor fcolor(float r, float g, float b, float a) {return FColor(r,g,b,a);}
-
-FColor fcolor(uint32_t ucolor) {return fcolor(color(ucolor));} //RGBA
-
-
-
-uint32_t u32RGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+bool hasFRectIntersection(FRect r1, FRect r2)
 {
-	uint32_t ucol;
-	uint8_t* ucol_ptr = (uint8_t*)(&ucol);
-	ucol_ptr[3] = r;
-	ucol_ptr[2] = g;
-	ucol_ptr[1] = b;
-	ucol_ptr[0] = a;
-	return ucol;
+	//Pour qu'il y ait intersection, il faut qu'il y ait intersection sur les deux axes simultanément (intersection des "ombres" projetés).
+	//On va alors partir sur le teste contraire : si sur un des axes il n'y a pas d'intersection, alors pas d'intersection dans l'ensemble.
+
+	float min1=r1.x; //Les deux extémités de r1 sur l'axe
+	float max1=r1.x+r1.w;
+	float min2=r2.x; //Les deux extémités de r2 sur l'axe
+	float max2=r2.x+r2.w;
+
+	if(max1 < min2  or  min1 > max2) return false;
+
+	//Même chose pour l'autre axe
+	min1=r1.y; //Les deux extémités de r1 sur l'axe
+	max1=r1.y+r1.h;
+	min2=r2.y; //Les deux extémités de r2 sur l'axe
+	max2=r2.y+r2.h;
+
+	if(max1 < min2  or  min1 > max2) return false;
+
+	return true;
 }
 
-
-uint32_t u32RGBA(Color col)
-{
-	return u32RGBA(col.r, col.g, col.b, col.a);
-}
-
-
-
-uint32_t u32ABGR(uint32_t rgba)
-{
-	uint8_t* ptr = (uint8_t*)(&rgba);
-	uint8_t r=ptr[3], g=ptr[2], b=ptr[1], a=ptr[0];
-
-	ptr[3] = a;
-	ptr[2] = b;
-	ptr[1] = g;
-	ptr[0] = r;
-
-	return rgba;
-}
-
-
-uint32_t u32RGBA(uint32_t abgr)
-{
-	uint8_t* ptr = (uint8_t*)(&abgr);
-	uint8_t a=ptr[3], b=ptr[2], g=ptr[1], r=ptr[0];
-
-	ptr[3] = r;
-	ptr[2] = g;
-	ptr[1] = b;
-	ptr[0] = a;
-
-	return abgr;
-}
-
-
-
-uint32_t u32RGBA(FColor col) {return u32RGBA(color(col));}
-
-
-
-uint8_t alphaByPercentage(float percent)
-{
-	float res = 255.0*percent;
-	if(res < 0) res = 0;
-	if(res > 255) res = 255;
-
-	return uint8_t(res);
-}
-
+std::string str(const char* c_string) {return std::string(c_string);}
 
 
 std::string strToupper(std::string str)

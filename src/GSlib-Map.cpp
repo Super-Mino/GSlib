@@ -2838,7 +2838,7 @@ bool Map::hitCollisionTile(FRect ent_rect, int layer_index, std::vector<short>* 
 	}
 
 
-	//Pour se faire, premièrement on va calculer la position de chacun de ses 4 points dans la tile-map et voir si au moins un est dans une tile de collision. (pratique de vérifier seulement les quatres coins dans le cas des hitbox plus petits qu'une tuile)
+	//Pour ce faire, premièrement on va calculer la position de chacun de ses 4 points dans la tile-map et voir si au moins un est dans une tile de collision. (pratique de vérifier seulement les quatres coins dans le cas des hitbox plus petits qu'une tuile)
 
 		//La position dans la tile-map est : 'position à l'écran (au pixel près, sur la cible de rendu)' + 'décalage de la "caméra" (startX ou Y)'.
 

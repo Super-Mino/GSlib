@@ -230,47 +230,47 @@ class Game : public Backend__Game
 			//--------------------------------------------
 		~Game();
 			//____________________________________________
-		
+
 			//____________________________________________
 
 		bool InitTheWindow(int window_w = 800, int window_h = 480, const char* window_title = "MyGame", uint32_t win_flags=0, const char* renderer_name=nullptr, bool try_enable_VSYNC=false); //Bk-Dp
 
-		
-	/*bp*/int getWinW(); //Bk-Dp
-	/*bp*/int getWinH(); //Bk-Dp
-	/*bp*/int getRenW(); //Bk-Dp
-	/*bp*/int getRenH(); //Bk-Dp
+
+		int getWinW(); //Bk-Dp
+		int getWinH(); //Bk-Dp
+		int getRenW(); //Bk-Dp
+		int getRenH(); //Bk-Dp
 		float getRenW_f();
 		float getRenH_f();
 		float dt() const; //Bk-Dp  //Nécessite '(Game ou gs)::processDeltaTime()' dans la boucle principale (selon le backend utilisé).
 		void setWinSize(int w, int h);
-	
+
 		Texture* loadTexture(const std::string& pth, bool nearest=true);
 		bool drawTile(Texture* tileset, FRect src, FRect dest, bool isRenderTheTarget = true);
-	/*bp*/void fpsProcessBegin(); //Bk-Dp
-	/*bp*/void fpsProcessEnd(uint32_t fps = 60); //Bk-Dp
-	/*bp*/void processDeltaTime(); //Bk-Dp
+		void fpsProcessBegin(); //Bk-Dp
+		void fpsProcessEnd(uint32_t fps = 60); //Bk-Dp
+		void processDeltaTime(); //Bk-Dp
 		std::string lastError() const;
 		void lastError(const std::string& str_info, const std::string& str_info_2="", const std::string& str_info_3="");
 		void addToClearAtTheEnd(Texture* tex);
 		void addToClearAtTheEnd(Renderer* renderer);
-	
-		
-	/*bp*/void setWinIcon(const std::string& path); //Bk-Dp
-	/*bp*/void setWinTitle(const std::string& new_title); //Bk-Dp
+
+
+		void setWinIcon(const std::string& path); //Bk-Dp
+		void setWinTitle(const std::string& new_title); //Bk-Dp
 		void setAsMainGame();
 		void setIsMainGame(const bool b);
 		void setUserData(void* data);
 		void* getUserData();
-	/*bp*/void renPresent(); //Bk-Dp
-	/*bp*/void renClear(); //Bk-Dp
-	/*bp*/Color setDrawColor(Color new_color); //Bk-Dp
-	/*bp*/Color getDrawColor(); //Bk-Dp
+		void renPresent(); //Bk-Dp
+		void renClear(); //Bk-Dp
+		Color setDrawColor(Color new_color); //Bk-Dp
+		Color getDrawColor(); //Bk-Dp
 		bool isGameInit() const {return isInit;}
 
 
 	protected :
-		
+
 		uint64_t m_frame_begin_ticks{0};
 		uint64_t m_frame_end_ticks{0};
 		bool m_fpsProcessBegin_is_ok=false;
@@ -307,35 +307,24 @@ void setClearColor(Renderer* ren, Color col); //Bk-Dp
 Color getClearColor(Renderer* ren); //Bk-Dp
 
 void addToClearAtTheEnd(Texture* tex);
-
 void addToClearAtTheEnd(Renderer* ren);
-
 void freeGivenResources();
 
 float rad(float degre);
-
 float degree(float rad);
 
 int roundToInt(float x);
 
 float paw2(float x);
-
 int paw2(int x);
 
 std::string lastError();
-
 void lastError(const std::string& str_info, const std::string& str_info_2="", const std::string& str_info_3="");
-
 bool lastErrorAutomaticLog();
 
-std::string str(const char* c_string);
-
 bool isInInterval_in_in(float a, float b, float val);
-
 bool isInInterval_in_out(float a, float b, float val);
-
 bool isInInterval_out_in(float a, float b, float val);
-
 bool isInInterval_out_out(float a, float b, float val);
 
 float euclideanDist(float x1, float y1, float x2, float y2);
@@ -361,8 +350,8 @@ float getVecAngle(Vec2f vec); //L'angle que formerait ce vecteur, s'il prenait o
 
 Vec2f rotatePoint(float center_x, float center_y, float point_x, float point_y, float angle_rad, bool clockwise=true);
 
-short sign(float val);
-short sign(int val);
+int sign(float val);
+int sign(int val);
 
 Vec2f orthoVecOf(Vec2f vector_);
 Vec2i orthoVecOf(Vec2i vector_);
@@ -403,70 +392,47 @@ float changeRange(float val, float origin_min, float origin_max, float target_mi
 float random(float min=0.f, float max=1.f); //uniforme
 int randint(int min, int max); //Bk-Dp //distribution uniforme
 
-FRect frect(Rect rect);
-
-Rect rect(FRect rect);
-
-Rect rect(int x, int y, int w, int h);
-
 FColor normalizeColor(FColor color_0_255);
-
 FColor normalizeColor(Color color_0_255);
-
 Color normalizedColorTo255(FColor color_0_1);
-
 FColor normalizedColorTo255_f(FColor color_0_1);
 
 Color lerpColors(Color begin_col, Color end_col, float t);
 
 Color color(int r, int g, int b, int a=255);
-
 Color color(float r, float g, float b, float a=1.f);
-
 Color color(uint32_t ucolor); //RGBA
-
 Color color(FColor col);
-
 FColor fcolor(Color col);
-
-FRect frect(int x, int y, int w, int h);
-
-Rect rect(Vec2i xy, Vec2i wh);
-
-FRect frect(Vec2f xy, Vec2f wh);
-
-void splitRect(Rect r, Vec2i& out_xy, Vec2i& out_wh);
-
-void splitFRect(FRect r, Vec2f& out_xy, Vec2f& out_wh);
-
-FRect getFRectFromPercentParam(FRect reference, FRect percent_param);
-
-FRect scaleFRect(FRect rect, float scale);
-
-FRect scaleFRect(FRect rect, Vec2f scale);
-
-Vec2f getFRectCenter(FRect rect);
-
 //FColor fcolor(int r, int g, int b, int a=255);
-
 FColor fcolor(float r, float g, float b, float a=255.f);
-
 FColor fcolor(uint32_t ucolor); //RGBA
 
 uint32_t u32RGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a=255);
-
 uint32_t u32RGBA(Color col);
-
 uint32_t u32ABGR(uint32_t rgba);
-
 uint32_t u32RGBA(uint32_t abgr);
-
 uint32_t u32RGBA(FColor col);
 
 uint8_t alphaByPercentage(float percent); //->a (rgba)
 
-std::string strToupper(std::string str);
+FRect frect(Rect rect);
+Rect rect(FRect rect);
+Rect rect(int x, int y, int w, int h);
+FRect frect(int x, int y, int w, int h);
+Rect rect(Vec2i xy, Vec2i wh);
+FRect frect(Vec2f xy, Vec2f wh);
 
+void splitRect(Rect r, Vec2i& out_xy, Vec2i& out_wh);
+void splitFRect(FRect r, Vec2f& out_xy, Vec2f& out_wh);
+FRect getFRectFromPercentParam(FRect reference, FRect percent_param);
+FRect scaleFRect(FRect rect, float scale);
+FRect scaleFRect(FRect rect, Vec2f scale);
+Vec2f getFRectCenter(FRect rect);
+bool hasFRectIntersection(FRect r1, FRect r2);
+
+std::string str(const char* c_string);
+std::string strToupper(std::string str);
 std::vector<std::string> strToupper(std::vector<std::string> str_vec);
 
 bool drawRect(Renderer* ren, const FRect* rect, const Color* col=nullptr, bool fill=false, Blend_Mode* b_mode=nullptr); //Bk-Dp
