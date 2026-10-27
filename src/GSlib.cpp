@@ -2099,32 +2099,6 @@ void Camera_Shaking::update(float dt)
 	timer-=dt;
 }
 
-void Camera2D_Base::addScreenShaking(float duration)
-{
-	m_screen_shakings.emplace_back();
-	m_screen_shakings.back().timer=duration;
-	m_screen_shakings.back().a = gs::Vec2f(gs::random(0.5f, 1.5f), gs::random(0.5f, 1.5f))*2.f;
-	m_screen_shakings.back().f = gs::Vec2f(gs::random(0.5f, 2.5f), gs::random(0.5f, 2.f))*40.f;
-}
-
-void Camera2D_Base::update(float dt)
-{
-	for(int i=int(m_screen_shakings.size())-1; i>=0; --i)
-		if(m_screen_shakings[i].timer <= 0.f)
-			m_screen_shakings.erase(m_screen_shakings.begin()+i); //Retrait des tremblements finis
-		else
-			m_screen_shakings[i].update(dt);
-}
-
-
-gs::Vec2f Camera2D_Base::getCurrScreenShaking() const
-{
-	gs::Vec2f sum;
-	for(const Camera_Shaking& s : m_screen_shakings)
-		sum += s.move;
-	return sum;
-}
-
 
 
 void Camera2D_Base::setWorldPos(gs::Vec2f new_pos)
@@ -2133,6 +2107,17 @@ void Camera2D_Base::setWorldPos(gs::Vec2f new_pos)
 	if(new_pos.y < m_min_world_pos.y) new_pos.y = m_min_world_pos.y;
 	m_world_pos = new_pos;
 }
+
+
+void Camera2D_Base::setWorldCenterPos(gs::Vec2f world_pos, gs::Vec2f ren_size)
+{
+	//Agit sur les position et offset mondes, sans tenir compte de ceux d'écrans.
+
+	setWorldPos(world_pos);
+	setWorldOffset((ren_size/m_zoom)*(-0.5f));
+}
+
+
 
 gs::Vec2f Camera2D_Base::getFormattedPos(gs::Vec2f pos) const
 {
@@ -2151,13 +2136,43 @@ gs::FRect Camera2D_Base::getFormattedRect(gs::FRect rect) const
 		rect.w*m_zoom, rect.h*m_zoom);
 }
 
-void Camera2D_Base::setWorldCenterPos(gs::Vec2f world_pos, gs::Vec2f ren_size)
-{
-	//Agit sur les position et offset mondes, sans tenir compte de ceux d'écrans.
 
-	setWorldPos(world_pos);
-	setWorldOffset((ren_size/m_zoom)*(-0.5f));
+
+void Camera2D_Base::update(float dt)
+{
+	for(int i=int(m_screen_shakings.size())-1; i>=0; --i)
+		if(m_screen_shakings[i].timer <= 0.f)
+			m_screen_shakings.erase(m_screen_shakings.begin()+i); //Retrait des tremblements finis
+		else
+			m_screen_shakings[i].update(dt);
 }
+
+
+void Camera2D_Base::addScreenShaking(float duration)
+{
+	m_screen_shakings.emplace_back();
+	m_screen_shakings.back().timer=duration;
+	m_screen_shakings.back().a = gs::Vec2f(gs::random(0.5f, 1.5f), gs::random(0.5f, 1.5f))*2.f;
+	m_screen_shakings.back().f = gs::Vec2f(gs::random(0.5f, 2.5f), gs::random(0.5f, 2.f))*40.f;
+}
+
+
+gs::Vec2f Camera2D_Base::getCurrScreenShaking() const
+{
+	gs::Vec2f sum{0.f, 0.f};
+	for(const Camera_Shaking& s : m_screen_shakings)
+		sum += s.move;
+	return sum;
+}
+
+
+void Camera2D_Base::disableScreenShaking()
+{
+	m_screen_shaking_enabled = false;
+	m_screen_shakings.clear();
+}
+
+
 
 
 

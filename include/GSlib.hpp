@@ -506,9 +506,8 @@ class Camera2D_Base
 		gs::Vec2f getWorldPos() const {return m_world_pos;}
 
 		void setWorldCenterPos(gs::Vec2f world_pos, gs::Vec2f ren_size);//Agit sur les position et offset mondes, sans tenir compte de ceux écrans.
-		void setScreenCenterPos(gs::Vec2f screen_pos, gs::Vec2f ren_size); //Agit sur les position et offset écrans, sans tenir compte de ceux mondes.
-
-		void setZoom(float new_zoom){m_zoom = GetMax(new_zoom, m_min_zoom); }
+		
+		void setZoom(float new_zoom){m_zoom = GetMax(new_zoom, m_min_zoom);}
 		void incrZoom(float val) {m_zoom = GetMax(m_zoom+val, m_min_zoom);}
 		float getZoom() const {return m_zoom;}
 
@@ -525,10 +524,13 @@ class Camera2D_Base
 		gs::Vec2f getFormattedSize(gs::Vec2f size) const;
 		gs::FRect getFormattedRect(gs::FRect rect) const;
 
-		void addScreenShaking(float duration);
 		virtual void update(float dt);
+		void addScreenShaking(float duration);
 		gs::Vec2f getCurrScreenShaking() const;
-
+		bool screenShakingEnabled() const {return m_screen_shaking_enabled;}
+		void enableScreenShaking() {m_screen_shaking_enabled = true;}
+		void disableScreenShaking();
+		
 		void setFilterColor(gs::Color c) {filter = c;}
 		gs::Color filter{0,0,0,0}; //Une couleur (attendue généralement transparente) à afficher par dessus le rendu.
 		bool allow_out_left=false; //Permettre à la caméra de "sortir" de la map à gauche
@@ -542,6 +544,7 @@ class Camera2D_Base
 		gs::Vec2f m_world_offset{0.f,0.f}; //S'additionne positivement avec 'm_world_pos'.
 		gs::Vec2f m_screen_offset{0.f,0.f}; //Uniquement à l'écran (donc non affecté par le zoom).
 		std::vector<Camera_Shaking> m_screen_shakings;
+		bool m_screen_shaking_enabled=true;
 
 	private:
 		float m_zoom=1.f;
