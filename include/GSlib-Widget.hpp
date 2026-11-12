@@ -2,19 +2,54 @@
 #define _GSlib_WIDGET_HPP_
 
 #include "GSlib.hpp"
-#include "GSlib-Text.hpp"
 #include <unordered_set>
 
 namespace gs
 {
 
+struct Btn_Param;
+struct Scbr_Param;
 class Button;
+class Scrollbar;
 
-//Pour les boutons et scrollbars:
-	bool initWidgets(Renderer* ren, std::string font_path);
-	//void widgetsProcessEvent(...); -> selon le backend utilisé
-	void updateWidgets();
-	bool setButtonText(Button& btn, std::string witch, const char* text, Color text_color, bool resize_area_w);
+//Pour la gestion interne des srollbars et boutons:
+
+	//void scrollbarsAndBtnsProcessEvent(...); -> selon le backend utilisé
+	void updateScrollbarsAndBtns(float dt);
+
+	Button& btn(int id, bool* is_ok=nullptr); //Afin de récupérer les instances internes, et pouvoir les manipuler.
+	Button& btn(const std::string& id, bool* is_ok=nullptr);
+	Scrollbar& scbr(int id, bool* is_ok=nullptr);
+	Scrollbar& scbr(const std::string& id, bool* is_ok=nullptr);
+
+	void turnOff0IDBtnWarning();
+	void turnOn0IDBtnWarning();
+	void turnOff0IDScbrWarning();
+	void turnOn0IDScbrWarning();
+
+	void setNextScrollbarsAndBtnsTargetGroup(int group_id);
+	void setNextScrollbarsAndBtnsTargetGroup(const std::string& group_id);
+	void setScrollbarsAndBtnsGroupActiveState(int group_id, bool active);
+	void setScrollbarsAndBtnsGroupActiveState(const std::string& group_id, bool active);
+	bool getScrollbarsAndBtnsGroupActiveState(int group_id);
+	bool getScrollbarsAndBtnsGroupActiveState(const std::string& group_id);
+
+	bool newBtn(int id, Vec2f pos, const Btn_Param& param); //Note: les arguments par défaut de ces 'newBtn()' sont mentionnés plus bas.
+	bool newBtn(const std::string& id, Vec2f pos, const Btn_Param& param);
+	bool newBtn(int id, FRect area, Btn_Param param);
+	bool newBtn(const std::string& id, FRect area, Btn_Param param);
+
+	void showBtns(Renderer* ren); //tous
+	void showBtns(Renderer* ren, int group_id);
+	void showBtns(Renderer* ren, const std::string& group_id);
+
+
+	bool newScbr(int id, const Scbr_Param& param); //Note: les arguments par défaut de ces 'newScbr()' sont mentionnés plus bas.
+	bool newScbr(const std::string& id, const Scbr_Param& param);
+
+	void showScbrs(Renderer* ren); //tous
+	void showScbrs(Renderer* ren, int group_id);
+	void showScbrs(Renderer* ren, const std::string& group_id);
 
 
 
@@ -26,140 +61,134 @@ class Button;
 
 
 
+
+struct Btn_Param //Les caractéristiques visuelles et autres, d'un bouton
+{
+	//--------------------------------------------
+	Vec2f size{60.f,25.f}; //En pixel
+
+	Color idle_color={240,10,10,255}; //par défaut
+	Color down_color={0,240,0,255}; //lorsqu'il est enfoncé
+	Color mouse_in_color={100,100,100,70}; //Lorsque la souris passe dessus sans rien faire d'autre
+
+	Texture* texture=nullptr; //Maximum deux tuiles sont attendues (une pour le bouton "élevé", une pour le bouton enfoncé)
+	Vec2i texture_tile_size{-1,-1}; //Taille de tuile donnée en pixel
+	Vec2i idle_tile_pos{0,0}; //En tuile
+	Vec2i down_tile_pos{0,0}; //En tuile - Note: 'texture_tile_size', 'idle_tile_pos' et 'down_tile_pos' sont initialisées avec la volonté que si l'on ne mentionne de valeur que pour 'texture', cette texture soit complètement affichée sur le bonton dans l'état "levé" et enfoncé.
+	bool acquire_texture_unloading_responsibility=false; //Indique si le gs::Button qui va prendre ces paramètres doit se charger de la destruction de 'texture' au destructeur de gs::Button.
+
+	//Lorsqu'une texture est mentionnée:
+	//c'est la texture qui est affichée (et non 'idle_color' ou 'down_color'), et potentiellement, en fonction des tuiles mentionnées.
+	//La couleur de la souris s'applique par dessus ce qui est affiché.
+
+	//-----------------------------------------------
+
+	void (*down_click_callback)(const Button& btn, void* user_data)=nullptr; //Fonction appelée lorsque le bouton est clické.
+	void (*release_callback)(const Button& btn, void* user_data)=nullptr; //Fonction appelée lorsque le bouton est relaché.
+	void* callback_arg=nullptr;
+
+};
+
+//Je remets ça ici pour pouvoir utliser '=Btn_Param()'.
+bool newBtn(int id, Vec2f pos=Vec2f(0.f,0.f), const Btn_Param& param=Btn_Param());
+bool newBtn(const std::string& id, Vec2f pos=Vec2f(0.f,0.f), const Btn_Param& param=Btn_Param());
+bool newBtn(int id, FRect area, Btn_Param param=Btn_Param());
+bool newBtn(const std::string& id, FRect area, Btn_Param param=Btn_Param());
 
 
 namespace wi
 {
-	enum Button_State {IDLE, ACTIVE, MOUSE_IN, CLICKED_IN};
-	enum Button_Field {AREA, IMG, TEXT};
+	enum Button_State {BTN_IDLE, BTN_DOWN, BTN_MOUSE_IN};
 	enum Action_Val {DOWN_CLICK=BK_EVENT_MOUSE_BUTTON_DOWN, UP_CLICK=BK_EVENT_MOUSE_BUTTON_UP};
 	enum Quick_Btns_Field {CHECK_AREA, BUTTONS};
+	enum Btn_Utils{BTN_NONE_ID=0}; //'BTN_NONE_ID' sert à mentionner une valeur libre, celle qui ne compte pas dans les identifiants.
 
 }
 
-class Button
+class Button : public Backend__Button
 {
 	public :
-		Button();
+		Button() = default;
 		~Button();
+		Button(const Button&)=delete;
+		Button& operator=(const Button&)=delete;
+		Button(Button&&) noexcept =default;
+		Button& operator=(Button&&) noexcept =default;
 
-		bool init(Renderer* ren, FRect area, const char* img_file_path=nullptr);
+		void enable() {m_enabled = true;}
+		void disable() {m_enabled = false;}
+		bool enabled() const {return m_enabled;}
 
-		bool loadTexture(Renderer* ren, const char* img_file_path);
-		bool setTexture(Texture* texture);
+		bool init(FRect area, Btn_Param param=Btn_Param());
+		bool init(Vec2f pos=Vec2f(0.f,0.f), const Btn_Param& param=Btn_Param());
 
-		bool show(Renderer* ren);
+		bool loadTexture(Renderer* ren, const std::string& img_file_path);
+		bool setTexture(Texture* texture, bool acquire_unloading_responsibility);
 
-		bool setShow(wi::Button_Field field, bool new_state);
+		//Si le bouton est géré indépendamment:
+			//void processEvent(...); selon le backend, sinon, 'update()' suffit.
+			void update(float dt, bool INTERNAL__check_events=true);
+
+		bool show(Renderer* ren) const;
 
 		void setArea(FRect new_area);
+		void setPos(float x, float y);
+		void incrPos(float x, float y);
+		
+		void setDownState(bool new_state);
 
-		void incrArea(short x, short y, short w=0, short h=0);
+		void setColor(wi::Button_State target_state, Color c);
 
-		void setActiveState(bool new_state);
-
-		void incrOffset(wi::Button_Field field, short x, short y);
-
-		void setDestSize(wi::Button_Field field, short w, short h);
-
-		void setColor(wi::Button_State target_state, FColor c);
-
-		void setTargetEvent(uint32_t target_event);
-
-
-		void setTargetButtonEvent(uint8_t id);
-
-		bool setCallbackOfTargetEvent(int (*callback)(void*), void* arg);
-
-		friend std::string INTERNAL_USE_switchText(Button& btn, std::string to_witch);
-
-		bool switchText(std::string to_witch="_"); //Avec 'to_witch' != 'active' et de 'idle', ça switch sur le texte qui n'est pas actuellement appliqué.
-
-
-		bool setSwitchTextByState(bool new_state);
-
-		friend void INTERNAL_USE_editState(Button& btn, wi::Button_State state, bool new_state);
-		friend bool setButtonText(Button& btn, std::string witch, const char* text, Color text_color, bool resize_area_w);
-
-
+		bool setDownClickCallback(void (*callback)(const Button&, void*));
+		bool setUpClickCallback(void (*callback)(const Button&, void*));
+		void setCallbackArg(void* user_data) {m.callback_arg = user_data;};
 
 
 
 		bool isInit() const;
-
 		Texture* getTexture();
-
-		bool getShow(wi::Button_Field field);
-
 		FRect getArea() const;
-
-		bool getActiveState() const;
-
-		Vec2i getOffset(wi::Button_Field field) const;
-
-		Vec2i getDestSize(wi::Button_Field field) const;
-
-		FColor getColor(wi::Button_State target_state) const;
-
-		bool mouseIn() const;
-
-		bool clickedIn() const;
-
-		uint32_t getTargetEvent();
-
-		uint8_t getTargetButtonEvent();
-
-		int getLastCallbackReturnVal();
-
-		bool getSwitchTextByState();
-
-
-
-
+		bool isDown() const;
+		Color getColor(wi::Button_State target_state) const;
+		bool isMouseIn() const;
+		bool downClicked() const {return not m_is_prev_down and m_is_down;}
+		bool released() const {return m_is_prev_down and not m_is_down;} //Si le bouton vient d'être relaché.
+		
 
 	protected:
-		bool 			m_is_init=false;
-		FRect 			m_area={0,0,0,0}; //m_area.h est aussi utilisée pour comme ptsize
 
-		bool 			m_active_state=false;
+		//Les états
+		bool  m_is_init=false;
+		Vec2f m_pos={0.f,0.f};
+		bool  m_is_down=false;
+		bool  m_mouse_in=false;
+		bool  m_is_prev_down=false; //reçoit la précédente valeur de 'm_is_down' à chaque à chaque mise à jour. Cela permet de détecter les clicks (bas, et hauts).
 
-		bool 			m_mouse_in=false;
-		bool 			m_clicked_in=false;
+		Btn_Param m; //Les caratérisiques.
 
-		bool  			m_show_text=false;
-		bool 			m_show_img=false;
-		bool 			m_show_area=true; // Avec une les couleurs ci-dessous selon l'état courant.
+		bool m_enabled = true; //Permet d'activer/désactiver le bouton. Si désactivé : plus affichée, et ne réagit plus aux events.
 
-		uint32_t  		m_target_action=wi::DOWN_CLICK;
-		uint8_t  		m_target_button_id=BK_MOUSE_BUTTON_LEFT;
+	private:
 
-		int 			(*m_callback)(void*) = nullptr;
-		int 			m_last_callback_return_val=0;
-		void*  			m_callback_arg=nullptr;
+		void INTERNAL_USE_getMembersPtrs_forEventProcessing(INTERNAL__membersTransfer& ptrs) override
+		{
+			ptrs.m_pos = &m_pos;
+			ptrs.m_size = &m.size;
+            ptrs.m_is_down= &m_is_down;
+            ptrs.m_mouse_in = &m_mouse_in;
+		}
 
 
-		Texture* 	m_texture=nullptr;
-		Vec2i  			m_texture_offset={0,0};
-		Vec2i       	m_texture_dest_size;
 
-		Texture*  	m_text_texture=nullptr;
-		uint16_t 			m_button_id=0;
-		bool  			m_switch_text_by_state=false;
-		Vec2i  			m_text_offset={0,0};
-		Vec2i       	m_text_dest_size;
+		friend struct SBIM;
 
-		FColor  	m_idle_color={240.f,10.f,10.f,255.f};
-		FColor  	m_active_color={0.f,240.f,0.f,255.f};
-		FColor 	    m_mouse_in_color={100.f,100.f,100.f,70.f};
-		FColor  	m_clicked_in_color={255.f,255.f,40.f,205.f};
-
+		//Gérées du côté de SBIM et co
+			int group_id_i=0;
+			std::string group_id_s;
+			bool group_id_is_int=true;
 };
 
 //==============================================================================//
-
-
-
-
 
 
 
@@ -172,18 +201,42 @@ namespace wi
 {
 	enum Scrollbar_Orient {VERTICAL, HORIZONTAL};
 	enum Scrollbar_Area {MAIN_AREA, MOVEABLE_THING_AREA};
+	enum Scbr_Utils{SCBR_NONE_ID=0}; //'BTN_NONE_ID' sert à mentionner une valeur libre, celle qui ne compte pas dans les identifiants.
 };
+
+
+struct Scbr_Param //Les caractéristiques d'un scrollbar
+{
+	wi::Scrollbar_Orient orient=wi::VERTICAL; //Orientation.
+	unsigned int   max_val=100; //Valeur maximale obtenable (peut être changée au besoin).
+	unsigned int   moveable_thing_len=30;
+	
+	Vec2i          pos={10, 10};
+	unsigned int   len=300; //Longueur de la scrollbar (en pixel).
+	unsigned int   thickness=15; //Epaisseur de la scrollbar (en pixel).
+	unsigned char  min_len=10; //Longueur minimale.
+	unsigned char  min_thickness=4; //Epaisseur minimale.
+
+	Color          bg_col={170,170,170,255}; //-> de la zone de scroll.
+	Color          fg_col={240,240,240,255}; //-> de l'élément amovible.
+};
+
+
+//Je remets ça ici pour pouvoir utliser '=Scbr_Param()'.
+bool newScbr(int id, const Scbr_Param& param=Scbr_Param());
+bool newScbr(const std::string& id, const Scbr_Param& param=Scbr_Param());
+
 
 class Scrollbar : public Backend__Scrollbar
 {
 	public :
-		Scrollbar();
-		~Scrollbar();
+		bool init(const Scbr_Param& param=Scbr_Param()); //Optionnelle
 
 		bool show(Renderer* ren);
-		void update(); //Note: 'gs::updateWidgets()' en fait appel, il n'est donc pas nécessaire de l'appeler séparément si 'gs::updateWidgets()' est utilisée. 
 
-		//void processEvent(...); selon le backend, sinon, 'update()' suffit. De plus, avec le backend où c'est disponible, 'gs::widgetsProcessEvent()' en fait appel, il n'est donc pas nécessaire de l'appeler séparément si 'gs::widgetsProcessEvent()' est utilisée.
+		//Si le scrollbar est géré indépendamment:
+			//void processEvent(...); selon le backend, sinon, 'update()' suffit.
+			void update(bool INTERNAL__check_events=true);
 
 		bool moved() const;
 		unsigned int setProgr(unsigned int val);
@@ -204,8 +257,8 @@ class Scrollbar : public Backend__Scrollbar
 		unsigned int setMaxVal(unsigned int max_val);
 		unsigned int getMaxVal() const;
 
-		FColor setColor(const wi::Scrollbar_Area& area, const FColor& color);
-		FColor getColor(const wi::Scrollbar_Area& area) const;
+		Color setColor(const wi::Scrollbar_Area& area, const Color& color);
+		Color getColor(const wi::Scrollbar_Area& area) const;
 
 		Rect getArea(const wi::Scrollbar_Area& area=wi::MAIN_AREA) const;
 
@@ -215,36 +268,33 @@ class Scrollbar : public Backend__Scrollbar
 
 		void checkParam();
 		void incrProgr(int val); //Incrémenter la progression.
-		void setAreaRects(Rect& area, Rect& moveable_thing_area) const override;
+		void getAreaRects(Rect& area, Rect& moveable_thing_area) const override;
 
-		wi::Scrollbar_Orient 	m_orient=wi::VERTICAL; //Orientation.
 		bool  					m_mouse_clicked_in=false;
 		short 					m_to_move_buf=0; //Valeur qui fait incrémenter la position de l'objet amovible lors de la mise à jour.
 		bool 					m_moved=false; //Témoin du movement à la dernière mise à jour.
-
-		unsigned int 			m_max_val=100; //Valeur maximale obtenable (peut être changée au besoin).
 		unsigned int  			m_pixel_progr=0; //Progression en pixel de l'élément amovible, qui permet de déduire la valeur courante.
-		unsigned int 			m_moveable_thing_len=30;
-		// unsigned int  			m_no_need_scroll_count=50;
+		// unsigned int  		m_no_need_scroll_count=50;
 
-		Vec2i 					m_pos={10, 10};
-		unsigned int 			m_len=300; //Longueur de la scrollbar (en pixel).
-		unsigned int 			m_thickness=15; //Epaisseur de la scrollbar (en pixel).
-		unsigned char 			m_min_len=10; //Longueur minimale.
-		unsigned char 			m_min_thickness=4; //Epaisseur minimale.
-
-		FColor 				m_bg_col={170.f,170.f,170.f,255.f}; //-> de la zone de scroll.
-		FColor 				m_fg_col={240.f,240.f,240.f,255.f}; //-> de l'élément amovible.
+		Scbr_Param m;
+		
 
 	private:
 		
 		void INTERNAL_USE_getMembersPtrs_forEventProcessing(INTERNAL__membersTransfer& ptrs) override
 		{
 			ptrs.m_mouse_clicked_in = &m_mouse_clicked_in;
-            ptrs.m_orient= (void*)(&m_orient);
+            ptrs.m_orient = (void*)(&m.orient);
             ptrs.m_to_move_buf = &m_to_move_buf;
 		}
 
+
+		friend struct SBIM;
+
+		//Gérées du côté de SBIM et co
+			int group_id_i=0;
+			std::string group_id_s;
+			bool group_id_is_int=true;
 };
 
 

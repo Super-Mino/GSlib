@@ -434,6 +434,7 @@ bool hasFRectIntersection(FRect r1, FRect r2);
 std::string str(const char* c_string);
 std::string strToupper(std::string str);
 std::vector<std::string> strToupper(std::vector<std::string> str_vec);
+template<class T> std::string str(T number) {return std::to_string(number);}
 
 bool drawRect(Renderer* ren, const FRect* rect, const Color* col=nullptr, bool fill=false, Blend_Mode* b_mode=nullptr); //Bk-Dp
 bool drawRect(Renderer* ren, const FRect& rect, const Color* col=nullptr, bool fill=false, Blend_Mode* b_mode=nullptr);

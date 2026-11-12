@@ -158,10 +158,10 @@ class Rendered_Str_Bank // A faire attention lors des déplacements. (Je pense q
 							uint32_t fg_color, uint32_t bg_color);
 
 
-		bool setFont(Font& font, bool free_bank_prev_memory);
-		bool setFont(Font* font, bool free_bank_prev_memory);
+		bool setFont(Font& font, bool free_bank_prev_memory=true);
+		bool setFont(Font* font, bool free_bank_prev_memory=true);
 		Font* getFont() const;
-		void clear(bool free_memory);
+		void clear(bool free_memory=true);
 
 
 	protected:
@@ -222,7 +222,7 @@ class Text_Line
 		Text_Line(Rendered_Str_Bank* bank);
 		~Text_Line() = default;
 
-		bool initAll(Renderer* ren, Font& font, Rendered_Str_Bank& bank, const char* font_path, uint16_t ptsize, uint32_t fg_rgba_col); //Initialise le font et la banque (si pas déjà fait), afin de pouvoir être utilisés par le gs::Text_Line.
+		bool initAll(Renderer* ren, Font& font, Rendered_Str_Bank& bank, const std::string& font_path, uint16_t ptsize, uint32_t fg_rgba_col); //Initialise le font et la banque (si pas déjà fait), afin de pouvoir être utilisés par le gs::Text_Line.
 
 		bool setBank(Rendered_Str_Bank& bank);
 		bool setBank(Rendered_Str_Bank* bank);
@@ -334,7 +334,7 @@ class Text_Line
 
 }; //Text_Line
 
-
+class Text_Line_Self_Contained;
 
 
 
@@ -509,7 +509,7 @@ class Text_Window : public Backend__Text_Window
 		std::string getText(int line_index=-1); //`line_index' négative = pour toute les lignes.
 		std::string getCursorChar();
 		std::string getLineBeginBlank(int line_index) const; //C'est une interface pour la méthode 'Text_Line::getTextBeginBlank()'.
-//
+
 		bool show(Renderer* ren, bool highlight_selected_line=false, std::vector<Rendered_Line_Info>* rendered_lines_info=nullptr, bool hide_the_after_cursor_part=false);
 
 		//bool processEvent(...); à voir dans dans 'Backend__Text_Window', selon le backend utilisé
@@ -704,6 +704,27 @@ class Text_Window : public Backend__Text_Window
 	
 
 }; //Text_Window
+
+
+
+
+
+
+
+
+class Text_Line_Self_Contained : public Text_Line
+{
+	public:
+
+		bool init_TLSC(Renderer* ren, const std::string& font_path, uint16_t ptsize=28, uint32_t fg_rgba_col=0xE0E0E0FFu);
+		bool isInit_TLSC() const {return m_self_font.isInit() and getBank() != nullptr;}
+		bool changeFont_TLSC(const std::string& font_path);
+
+	protected:
+		
+		Font m_self_font;
+		Rendered_Str_Bank m_self_str_bank_instance;
+};
 
 
 

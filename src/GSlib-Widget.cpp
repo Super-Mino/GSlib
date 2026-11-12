@@ -1,356 +1,789 @@
 #include "GSlib-Widget.hpp"
 #include "GSlib-Geo.hpp"
+#include "GSlib-Text.hpp"
+#include <map>
 
 
 namespace gs
 {
 
-struct Vec2Texture
+struct Group
 {
-	Vec2Texture() = default;
-		Texture* active=nullptr, * idle=nullptr;
-	~Vec2Texture() {}
+	bool is_active=true; //Un groupe désactivé n'est pas affiché et ne reçoit pas les événements (ni de mise à jour).
+
+	//Les identifiants des boutons de ce groupe
+	std::unordered_set<int> int_btns; //objectif : contenir des valeurs issues des clés de 'SBIM::m_int_ID_btns'
+	std::unordered_set<std::string> str_btns; //objectif : contenir des valeurs issues des clés de 'SBIM::m_str_ID_btns'
+
+	//Les identifiants des scrollbars de ce groupe
+	std::unordered_set<int> int_scbrs; //objectif : contenir des valeurs issues des clés de 'SBIM::m_int_ID_scbrs'
+	std::unordered_set<std::string> str_scbrs; //objectif : contenir des valeurs issues des clés de 'SBIM::m_str_ID_scbrs'
+
+
+	bool haveBtn(int id) const {return int_btns.contains(id);}
+	bool haveBtn(const std::string& id) const {return str_btns.contains(id);}
+	void addBtn(int id) {int_btns.insert(id);}
+	void addBtn(const std::string& id) {str_btns.insert(id);}
+	void removeBtn(int id) {int_btns.erase(id);}
+	void removeBtn(const std::string& id) {str_btns.erase(id);}
+
+	bool haveScbr(int id) const {return int_scbrs.contains(id);}
+	bool haveScbr(const std::string& id) const {return str_scbrs.contains(id);}
+	void addScbr(int id) {int_scbrs.insert(id);}
+	void addScbr(const std::string& id) {str_scbrs.insert(id);}
+	void removeScbr(int id) {int_scbrs.erase(id);}
+	void removeScbr(const std::string& id) {str_scbrs.erase(id);}
+
 };
 
-// void INTERNAL_USE_addButton(Button& button, uint16_t& id_ref);
-
-// void INTERNAL_USE_editState(Button& btn, wi::Button_State state, bool new_state);
-
-// void INTERNAL_USE_addButton(Button& button, uint16_t& id_ref);
-
-// void INTERNAL_USE_initButtonFont(Renderer* ren, size_t pt_size);
-
-// std::string INTERNAL_USE_switchText(Button& btn, std::string to_witch);
-
-
-
-
-
-Renderer*                                  ren_ptr=nullptr;
-bool                                       widgets_init=false;
-
-//std::unordered_set<Button*>                buttons_set;
-//std::unordered_set<Scrollbar*>             scrollbars_set;
-std::vector<Button*>                       buttons_vec;
-std::vector<Scrollbar*>                    scrollbars_vec;
-
-gs::Font                                   buttons_font;
-bool                                       buttons_font_is_init=false;
-std::string                                buttons_font_path="C:/Windows/boot/Fonts/Meiryo_boot.ttf";
-
-std::unordered_map<uint16_t, Vec2Texture>    buttons_text_textures;
-uint16_t 	                               buttons_curr_free_id=0;
-
-std::vector<Button*>& INTERNAL_USE_getButtonsVec() {return buttons_vec;}
-std::vector<Scrollbar*>& INTERNAL_USE_getScrollbarsVec() {return scrollbars_vec;}
-
-
-void INTERNAL_USE_editState(Button& btn, wi::Button_State state, bool new_state)
+struct SBIM // "Scrollbars and Buttons Internal Management" 
 {
-	if(!btn.m_is_init)
-		return;
+	//----------------------------------------------------------
+		//Les boutons (avec deux types d'identifiants autorisés)
+		std::map<int, Button> m_int_ID_btns;
+		std::map<std::string, Button> m_str_ID_btns;
 
-	switch(state)
+		//Les boutons (avec deux types d'identifiants autorisés)
+		std::map<int, Scrollbar> m_int_ID_scbrs;
+		std::map<std::string, Scrollbar> m_str_ID_scbrs;
+
+
+		//Les boutons et les scrollbars seront rangés dans des groupes.
+		std::unordered_map<int, Group> m_int_ID_groups;
+		std::unordered_map<std::string, Group> m_str_ID_groups;
+		bool m_curr_target_group_type_id_is_int = true;
+		int m_curr_target_group_id__i = 0;
+		std::string m_curr_target_group_id__s;
+
+		bool m_btn_id_0_warning=true; //Pour la sécurité
+		bool m_scbr_id_0_warning=true;
+
+		Text_Line_Self_Contained m_tlsc; //Pour l'affichage des textes.
+		std::string m_btns_font_path="C:/Windows/Fonts/consola.ttf"; 
+
+	//----------------------------------------------------------
+
+	struct R
 	{
-		case wi::MOUSE_IN: btn.m_mouse_in = new_state;
-			break;
+		std::map<int, Button>::iterator int_btn_it;
+		std::map<std::string, Button>::iterator str_btn_it;
 
-		case wi::CLICKED_IN:
-			btn.m_clicked_in = new_state;
+		std::map<int, Scrollbar>::iterator int_scbr_it;
+		std::map<std::string, Scrollbar>::iterator str_scbr_it;
+	};
 
-			if(new_state == true)
+	bool containsBtn(int id, R& res)
+	{
+		res.int_btn_it = m_int_ID_btns.find(id);
+		return res.int_btn_it != m_int_ID_btns.end();
+	}
+
+	bool containsBtn(const std::string& id, R& res)
+	{
+		res.str_btn_it = m_str_ID_btns.find(id);
+		return res.str_btn_it != m_str_ID_btns.end();
+	}
+
+	template<typename ID_t>
+	void addInGroup(ID_t id, Button& new_one)
+	{
+		if(m_curr_target_group_type_id_is_int)
+		{
+			m_int_ID_groups[m_curr_target_group_id__i].addBtn(id);
+			new_one.group_id_i = m_curr_target_group_id__i;
+		}
+		else
+		{
+			m_str_ID_groups[m_curr_target_group_id__s].addBtn(id);
+			new_one.group_id_s = m_curr_target_group_id__s;
+		}
+
+		new_one.group_id_is_int = m_curr_target_group_type_id_is_int;
+	}
+
+
+
+	//--------------------------------------------//
+
+	bool containsScbr(int id, R& res)
+	{
+		res.int_scbr_it = m_int_ID_scbrs.find(id);
+		return res.int_scbr_it != m_int_ID_scbrs.end();
+	}
+
+	bool containsScbr(const std::string& id, R& res)
+	{
+		res.str_scbr_it = m_str_ID_scbrs.find(id);
+		return res.str_scbr_it != m_str_ID_scbrs.end();
+	}
+
+	template<typename ID_t>
+	void addInGroup(ID_t id, Scrollbar& new_one)
+	{
+		if(m_curr_target_group_type_id_is_int)
+		{
+			m_int_ID_groups[m_curr_target_group_id__i].addScbr(id);
+			new_one.group_id_i = m_curr_target_group_id__i;
+		}
+		else
+		{
+			m_str_ID_groups[m_curr_target_group_id__s].addScbr(id);
+			new_one.group_id_s = m_curr_target_group_id__s;
+		}
+
+		new_one.group_id_is_int = m_curr_target_group_type_id_is_int;
+	}
+
+	//--------------------------------------------//
+	
+	void initTheTLSC(Renderer* ren)
+	{
+		#ifdef GSLIB_RAYLIB_BACKEND
+		return; //Car sur raylib ça ne fonctionnne pas correctement au moment où j'écris ce commentaire.
+		#endif //GSLIB_RAYLIB_BACKEND
+
+		if(not m_tlsc.isInit_TLSC())
+			m_tlsc.init_TLSC(ren, m_btns_font_path, 28, 0xE0E0E0FFu);
+	}
+	
+	void showBtnText(Renderer* ren, const std::string& text, FRect allowed_area)
+	{
+		#ifdef GSLIB_RAYLIB_BACKEND
+		return; //Car sur raylib ça ne fonctionnne pas correctement au moment où j'écris ce commentaire.
+		#endif //GSLIB_RAYLIB_BACKEND
+
+		if(not m_tlsc.isInit_TLSC()) return;
+		
+		m_tlsc.setMaxSize(Vec2u(allowed_area.w, allowed_area.h));
+		m_tlsc.setText(text);
+		Vec2u line_size = m_tlsc.update();
+
+		//Centrage du text dans la zone:
+		Vec2i area_pos(allowed_area.x, allowed_area.y);
+		Vec2i line_pos(area_pos.x+allowed_area.w/2 -line_size.x/2,
+				area_pos.y+allowed_area.h/2 -line_size.y/2);
+
+		m_tlsc.setPos(line_pos);
+		m_tlsc.show(ren);
+	}
+};
+SBIM _sbim_;
+
+
+Button& btn(int id, bool* is_ok)
+{
+	if(is_ok) *is_ok=true;
+	SBIM::R res;
+	if(_sbim_.containsBtn(id, res))
+		return res.int_btn_it->second;
+
+	if(is_ok) *is_ok=false;
+	gs::lastError("||Warning|| in 'btn(int)', button id [value ",gs::str(id)+"] not found.");
+	static Button default_btn;
+	return default_btn;
+}
+
+Button& btn(const std::string& id, bool* is_ok)
+{
+	if(is_ok) *is_ok=true;
+	SBIM::R res;
+	if(_sbim_.containsBtn(id, res))
+		return res.str_btn_it->second;
+
+	if(is_ok) *is_ok=false;
+	gs::lastError("||Warning|| in 'btn(str)', button id [value ",id+"] not found.");
+	static Button default_btn;
+	return default_btn;
+}
+
+Scrollbar& scbr(int id, bool* is_ok)
+{
+	if(is_ok) *is_ok=true;
+	SBIM::R res;
+	if(_sbim_.containsScbr(id, res))
+		return res.int_scbr_it->second;
+
+	if(is_ok) *is_ok=false;
+	gs::lastError("||Warning|| in 'scbr(int)', scrollbar id [value ",gs::str(id)+"] not found.");
+	static Scrollbar default_scbr;
+	return default_scbr;
+}
+
+Scrollbar& scbr(const std::string& id, bool* is_ok)
+{
+	if(is_ok) *is_ok=true;
+	SBIM::R res;
+	if(_sbim_.containsScbr(id, res))
+		return res.str_scbr_it->second;
+
+	if(is_ok) *is_ok=false;
+	gs::lastError("||Warning|| in 'scbr(str)', scrollbar id [value ",id+"] not found.");
+	static Scrollbar default_scbr;
+	return default_scbr;
+}
+
+
+
+void turnOff0IDBtnWarning(){_sbim_.m_btn_id_0_warning = false;}
+void turnOn0IDBtnWarning(){_sbim_.m_btn_id_0_warning = true;}
+void turnOff0IDScbrWarning(){_sbim_.m_scbr_id_0_warning = false;}
+void turnOn0IDScbrWarning(){_sbim_.m_scbr_id_0_warning = true;}
+
+void setNextScrollbarsAndBtnsTargetGroup(int group_id)
+{
+	_sbim_.m_curr_target_group_type_id_is_int = true;
+	_sbim_.m_curr_target_group_id__i = group_id;
+}
+
+void setNextScrollbarsAndBtnsTargetGroup(const std::string& group_id)
+{
+	_sbim_.m_curr_target_group_type_id_is_int = false;
+	_sbim_.m_curr_target_group_id__s = group_id;
+}
+
+
+Group& INTERNAL_USE_getGroup(int group_id, bool& is_ok)
+{
+	is_ok = true;
+	std::unordered_map<int, Group>::iterator it = _sbim_.m_int_ID_groups.find(group_id);
+	if(it != _sbim_.m_int_ID_groups.end())
+		return it->second;
+
+	is_ok = false;
+	static Group default_group;
+	return default_group;
+}
+
+Group& INTERNAL_USE_getGroup(const std::string& group_id, bool& is_ok)
+{
+	is_ok = true;
+	std::unordered_map<std::string, Group>::iterator it = _sbim_.m_str_ID_groups.find(group_id);
+	if(it != _sbim_.m_str_ID_groups.end())
+		return it->second;
+
+	is_ok = false;
+	static Group default_group;
+	return default_group;
+}
+
+
+void setScrollbarsAndBtnsGroupActiveState(int group_id, bool active)
+{
+	bool is_ok; INTERNAL_USE_getGroup(group_id, is_ok).is_active = active;
+}
+
+void setScrollbarsAndBtnsGroupActiveState(const std::string& group_id, bool active)
+{
+	bool is_ok; INTERNAL_USE_getGroup(group_id, is_ok).is_active = active;
+}
+
+
+bool getScrollbarsAndBtnsGroupActiveState(int group_id)
+{
+	bool is_ok, is_active = INTERNAL_USE_getGroup(group_id, is_ok).is_active;
+	return is_ok and is_active;
+}
+
+bool getScrollbarsAndBtnsGroupActiveState(const std::string& group_id)
+{
+	bool is_ok, is_active = INTERNAL_USE_getGroup(group_id, is_ok).is_active;
+	return is_ok and is_active;
+}
+
+
+
+
+
+bool newBtn(int id, Vec2f pos, const Btn_Param& param)
+{
+	bool skip_presence_checking = false;
+
+	if(id == wi::BTN_NONE_ID) //Cas particulier
+	{
+		//Rajout d'un bouton avec la première clé libre trouvée.
+		
+		//Recherche d'un trou dans les valeurs des clés
+		bool is_first_loop = true;
+		int prev_id=wi::BTN_NONE_ID; //important d'initialiser à cette valeur.
+		bool found=false;
+		for(const auto& [curr_id, btn] : _sbim_.m_int_ID_btns)
+		{
+			if(is_first_loop) //Pour comparer deux clés successives..., il faut deux clés. Donc, on commence la comparaison à partir du deuxième tour.
 			{
-				bool previous_state = btn.m_active_state;
-				btn.m_active_state = !btn.m_active_state;
-
-				if(previous_state != btn.m_active_state)
-					if(btn.m_callback)
-					{
-						btn.m_last_callback_return_val = btn.m_callback(btn.m_callback_arg);
-					}
-
-				if(btn.m_switch_text_by_state)
-				{
-					if(btn.m_active_state == false)
-						btn.switchText("idle");
-					else
-						btn.switchText("active");
-				}
+				prev_id = curr_id;
+				is_first_loop = false;
+				continue;
 			}
 
-			break;
+			//Les clés sont des entiers, et le conteneur utilisé est 'std::map' (afin d'avoir les clés dans l'ordre).
+			//Par conséquent, si l'on trouve deux clés successives distantes de plus d'un, alors on a trouvé un trou.
+			int dist = std::abs(curr_id-prev_id); //Le 'std::abs()' n'est pas nécessaire ici, mais je le laisse.
+			
+			if(dist > 1)
+			{
+				id = prev_id+1; //récupération de l'ID normalement libre.
+				found = true;
+				break;
+			}
 
-		default:return;
-	}
-}
-
-
-
-void INTERNAL_USE_addButton(Button& button, uint16_t& id_ref)
-{
-	id_ref = buttons_curr_free_id;
-	buttons_curr_free_id++;
-
-	//buttons_set.insert(&button);
-	buttons_vec.push_back(&button);
-}
-
-
-
-void INTERNAL_USE_initButtonFont(Renderer* ren, size_t pt_size)
-{
-	if(buttons_font_is_init) return;
-
-	bool res = buttons_font.init(ren, buttons_font_path.c_str(),
-											pt_size, gs::te::BLENDED);
-
-	if(not res)
-	{
-		gs::lastError(gs::str("from 'INTERNAL_USE_initButtonFont()' : ")+gs::lastError());
-		return;
-	}
-
-	buttons_font_is_init = true;
-}
-
-
-
-std::string INTERNAL_USE_switchText(Button& btn, std::string to_witch)
-{
-	if(buttons_text_textures.contains(btn.m_button_id))
-	{
-		if(to_witch == "active")
-			btn.m_text_texture = buttons_text_textures.at(btn.m_button_id).active;
-
-		else
-		if(to_witch == "idle")
-			btn.m_text_texture = buttons_text_textures.at(btn.m_button_id).idle;
-
-		else
-		{
-			if(btn.m_text_texture == buttons_text_textures.at(btn.m_button_id).active)
-				btn.m_text_texture = buttons_text_textures.at(btn.m_button_id).idle;
-			else
-				btn.m_text_texture = buttons_text_textures.at(btn.m_button_id).active;
+			//Sinon on poursuit
+			prev_id = curr_id;
 		}
+
+		if(not found) //Si aucun trou n'a été trouvé
+			id = prev_id+1;
+
+		skip_presence_checking = true;
+
+		if(_sbim_.m_btn_id_0_warning)
+			gs::lastError("||Warning|| in 'newBtn(int)', called with 'wi::BTN_NONE_ID' value [aka ",gs::str(int(wi::BTN_NONE_ID))+"], so a free id will be used instead [free found id : "+gs::str(id)+"]. If it's intentional (using this feature), you can turn off this warning with 'turnOff0IDBtnWarning()'.");
+		
 	}
-	else
-		return std::string("this button doesn't have a text manager. [use 'setText(Button)' to init one. (given button id : ")+std::to_string(btn.m_button_id)+gs::str(")]. ");
 
-	return std::string();
-}
-
-
-
-bool initWidgets(Renderer* ren, std::string font_path)
-{
-	//if(ren)
+	SBIM::R res;
+	if(not skip_presence_checking and _sbim_.containsBtn(id, res))
 	{
-		ren_ptr = ren;
-		buttons_font_path = font_path;
-		widgets_init = true;
-
-		return true;
+		gs::lastError("||Warning|| in 'newBtn(int)', button id already used. [id = ",gs::str(id)+"]");
+		return false;
 	}
-	//gs::lastError("In 'initWidgets()', given Renderer* is invalid. ");
+
+
+	auto r = _sbim_.m_int_ID_btns.emplace(id, Button());
 	
-	return false;
-}
-
-
-
-
-
-void updateWidgets()
-{
-	#ifdef GSLIB_RAYLIB_BACKEND
-	INTERNAL_USE_checkWidgetsEvent();
-	#endif // GSLIB_RAYLIB_BACKEND
-
-	//for(Scrollbar* bar : scrollbars_set)
-	for(Scrollbar* bar : scrollbars_vec)
-		if(bar)
-			bar->update();
-}
-
-
-
-
-bool setButtonText(Button& btn, std::string witch, const char* text, Color text_color, bool resize_area_w)
-{
-	if(not widgets_init)
+	if(not r.second)
+		gs::lastError("||Warning|| in 'newBtn(int)', couldn't add button. [id = ",gs::str(id)+"]");
+	else
 	{
-		gs::lastError("In 'setButtonText()', widgets not yet init, cannot use font. [Use 'gs::initWidgets()' before]. ");
-		return false;
-	}
-
-	bool resize_font = true;
-	if(not buttons_font_is_init)
-	{
-		INTERNAL_USE_initButtonFont(ren_ptr, btn.m_area.h);
-		bool resize_font = false;
-	}
-
-	if(not buttons_font_is_init)
-	{
-		// gs::lastError("In 'setButtonText(Button)', button font is not init (init failed). ");
-		gs::lastError(gs::str("from 'setButtonText(Button)' : ")+gs::lastError());
-		return false;
-	}
-
-	if(not btn.m_is_init)
-	{
-		gs::lastError("In 'setButtonText(Button)', button is not yet init. ");
-		return false;
-	}
-
-	if(not buttons_text_textures.contains(btn.m_button_id))
-	{
-		auto res = buttons_text_textures.insert({btn.m_button_id, Vec2Texture()});
-		if(not std::get<1>(res))
+		bool is_ok = r.first->second.init(pos, param);
+		
+		if(not is_ok)
 		{
-			gs::lastError("In 'setButtonText(Button)', insert text texture manager failed. ");
+			_sbim_.m_int_ID_btns.erase(id);
+
+			gs::lastError("||Warning|| in 'newBtn(int)', couldn't init button, so addition is rejected. [id = ",gs::str(id)+"] : "+gs::lastError());
 			return false;
 		}
+
+		_sbim_.addInGroup(id, r.first->second); //Une fois que tout est OK, on met le bouton dans le groupe d'accueil actif.
 	}
 
-	Vec2Texture& vec2T = buttons_text_textures.at(btn.m_button_id);
+	return r.second;
+}
 
-	if(resize_font)
-		buttons_font.setPtsize(btn.m_area.h);
 
-	Vec2f text_size;
-
-	Texture* rendered_text = buttons_font.render(text, text_color,
-															te::SELF_DEFAULT, nullptr, &text_size);
-	if(!rendered_text)
+bool newBtn(const std::string& id, Vec2f pos, const Btn_Param& param)
+{
+	if(id.length() == 0)
 	{
-		gs::lastError(gs::str("In 'setText(Button)', render text failed : ")+gs::lastError());
+		gs::lastError("||Warning|| in 'newBtn(str)', button id must not be an empty string.");
+		return false;
+	}
+
+	SBIM::R res;
+	if(_sbim_.containsBtn(id, res))
+	{
+		gs::lastError("||Warning|| in 'newBtn(str)', button id already used. [id = ",id+"]");
 		return false;
 	}
 
 
-
-	if(witch == "active")
-	{
-		if(vec2T.active)
-			destroyTexture(vec2T.active);
-
-
-		vec2T.active = rendered_text;
-		btn.m_text_texture = vec2T.active;
-	}
-	else
-	if(witch == "idle")
-	{
-		if(vec2T.idle)
-			destroyTexture(vec2T.idle);
-
-		vec2T.idle = rendered_text;
-		btn.m_text_texture = vec2T.idle;
-	}
-	else
-	{
-		destroyTexture(rendered_text);
-		gs::lastError(gs::str("In 'setText(Button)', witch text texture to work with ? ['active' or 'idle', given : '")+witch+gs::str("']. "));
-		return false;
-	}
-
-	if(resize_area_w)
-	{
-		FRect new_area;
-		new_area.x = btn.m_area.x;
-		new_area.y = btn.m_area.y;
-		new_area.w = text_size.x;
-		new_area.h = btn.m_area.h;
+	auto r = _sbim_.m_str_ID_btns.emplace(id, Button());
 	
-		btn.setArea(new_area);
+	if(not r.second)
+		gs::lastError("||Warning|| in 'newBtn(str)', couldn't add button. [id = ",id+"]");
+	else
+	{
+		bool is_ok = r.first->second.init(pos, param);
+		
+		if(not is_ok)
+		{
+			_sbim_.m_str_ID_btns.erase(id);
+
+			gs::lastError("||Warning|| in 'newBtn(str)', couldn't init button, so addition is rejected. [id = ",id+"] : "+gs::lastError());
+			return false;
+		}
+
+		_sbim_.addInGroup(id, r.first->second); //Une fois que tout est OK, on met le bouton dans le groupe d'accueil actif.
 	}
 
-	gs::addToClearAtTheEnd(rendered_text);
+	return r.second;
+}
 
-	btn.m_show_text=true;
+
+bool newBtn(int id, FRect area, Btn_Param param)
+{
+	Vec2f pos; gs::splitFRect(area, pos, param.size);
+	return newBtn(id, pos, param);
+}
+
+bool newBtn(const std::string& id, FRect area, Btn_Param param)
+{
+	Vec2f pos; gs::splitFRect(area, pos, param.size);
+	return newBtn(id, pos, param);
+}
+
+
+
+void INTERNAL_USE_showBtnsOfGroup(const Group& group, Renderer* ren)
+{
+	if(not group.is_active) return;
+
+	SBIM::R res;
+
+	for(int id : group.int_btns)
+	{
+		if(_sbim_.containsBtn(id, res)) //Sécurité
+			res.int_btn_it->second.show(ren);
+	}
+
+	for(const std::string& id : group.str_btns)
+	{
+		if(_sbim_.containsBtn(id, res)) //Sécurité
+			res.str_btn_it->second.show(ren);
+	}
+}
+
+
+void showBtns(Renderer* ren) //tous
+{
+	for(const auto& [group_id, group] : _sbim_.m_int_ID_groups)
+		INTERNAL_USE_showBtnsOfGroup(group, ren);
+
+	for(const auto& [group_id, group] : _sbim_.m_str_ID_groups)
+		INTERNAL_USE_showBtnsOfGroup(group, ren);
+}
+
+
+void showBtns(Renderer* ren, int group_id)
+{
+	bool is_ok;
+	INTERNAL_USE_showBtnsOfGroup(INTERNAL_USE_getGroup(group_id, is_ok), ren);
+}
+
+void showBtns(Renderer* ren, const std::string& group_id)
+{
+	bool is_ok;
+	INTERNAL_USE_showBtnsOfGroup(INTERNAL_USE_getGroup(group_id, is_ok), ren);
+}
+
+std::vector<Button*> INTERNAL_USE_getActiveBtns()
+{
+	std::vector<Button*> atv_btns; // "active buttons"
+	SBIM::R res;
+
+	std::vector<Group*> groups;
+	for(auto& [_i, group] : _sbim_.m_int_ID_groups) groups.push_back(&group);
+	for(auto& [_s, group] : _sbim_.m_str_ID_groups) groups.push_back(&group);
+
+
+	for(Group* g : groups)
+	{
+		if(not g) continue;
+		Group& group = *g;
+
+		if(not group.is_active) continue;
+
+		for(int id : group.int_btns) //Parcours des identifiants int des boutons de ce groupe
+		{
+			if(_sbim_.containsBtn(id, res)) //Récupération des boutons correspondants
+				atv_btns.push_back(&res.int_btn_it->second);
+		}
+
+		for(const std::string& id : group.str_btns) //Même chose pour les identifiants str
+		{
+			if(_sbim_.containsBtn(id, res))
+				atv_btns.push_back(&res.str_btn_it->second);
+		}
+	}
+
+	return atv_btns;
+}
+
+
+
+
+
+bool newScbr(int id, const Scbr_Param& param)
+{
+	bool skip_presence_checking = false;
+
+	if(id == wi::SCBR_NONE_ID) //Cas particulier
+	{
+		//Rajout d'un scrollbar avec la première clé libre trouvée.
+		
+		//Recherche d'un trou dans les valeurs des clés
+		bool is_first_loop = true;
+		int prev_id=wi::SCBR_NONE_ID; //important d'initialiser à cette valeur.
+		bool found=false;
+		for(const auto& [curr_id, scbr] : _sbim_.m_int_ID_scbrs)
+		{
+			if(is_first_loop) //Pour comparer deux clés successives..., il faut deux clés. Donc, on commence la comparaison à partir du deuxième tour.
+			{
+				prev_id = curr_id;
+				is_first_loop = false;
+				continue;
+			}
+
+			//Les clés sont des entiers, et le conteneur utilisé est 'std::map' (afin d'avoir les clés dans l'ordre).
+			//Par conséquent, si l'on trouve deux clés successives distantes de plus d'un, alors on a trouvé un trou.
+			int dist = std::abs(curr_id-prev_id); //Le 'std::abs()' n'est pas nécessaire ici, mais je le laisse.
+			
+			if(dist > 1)
+			{
+				id = prev_id+1; //récupération de l'ID normalement libre.
+				found = true;
+				break;
+			}
+
+			//Sinon on poursuit
+			prev_id = curr_id;
+		}
+
+		if(not found) //Si aucun trou n'a été trouvé
+			id = prev_id+1;
+
+		skip_presence_checking = true;
+
+		if(_sbim_.m_scbr_id_0_warning)
+			gs::lastError("||Warning|| in 'newScbr(int)', called with 'wi::SCBR_NONE_ID' value [aka ",gs::str(int(wi::SCBR_NONE_ID))+"], so a free id will be used instead [free found id : "+gs::str(id)+"]. If it's intentional (using this feature), you can turn off this warning with 'turnOff0IDScbrWarning()'.");
+		
+	}
+
+	SBIM::R res;
+	if(not skip_presence_checking and _sbim_.containsScbr(id, res))
+	{
+		gs::lastError("||Warning|| in 'newScbr(int)', scrollbar id already used. [id = ",gs::str(id)+"]");
+		return false;
+	}
+
+
+	auto r = _sbim_.m_int_ID_scbrs.emplace(id, Scrollbar());
+	
+	if(not r.second)
+		gs::lastError("||Warning|| in 'newScbr(int)', couldn't add scrollbar. [id = ",gs::str(id)+"]");
+	else
+	{
+		bool is_ok = r.first->second.init(param);
+		
+		if(not is_ok)
+		{
+			_sbim_.m_int_ID_scbrs.erase(id);
+
+			gs::lastError("||Warning|| in 'newScbr(int)', couldn't init scrollbar, so addition is rejected. [id = ",gs::str(id)+"] : "+gs::lastError());
+			return false;
+		}
+
+		_sbim_.addInGroup(id, r.first->second); //Une fois que tout est OK, on met le scrollbar dans le groupe d'accueil actif.
+	}
+
+	return r.second;
+}
+
+
+bool newScbr(const std::string& id, const Scbr_Param& param)
+{
+	if(id.length() == 0)
+	{
+		gs::lastError("||Warning|| in 'newScbr(str)', scrollbar id must not be an empty string.");
+		return false;
+	}
+
+	SBIM::R res;
+	if(_sbim_.containsScbr(id, res))
+	{
+		gs::lastError("||Warning|| in 'newScbr(str)', scrollbar id already used. [id = ",id+"]");
+		return false;
+	}
+
+
+	auto r = _sbim_.m_str_ID_scbrs.emplace(id, Scrollbar());
+	
+	if(not r.second)
+		gs::lastError("||Warning|| in 'newScbr(str)', couldn't add scrollbar. [id = ",id+"]");
+	else
+	{
+		bool is_ok = r.first->second.init(param);
+		
+		if(not is_ok)
+		{
+			_sbim_.m_str_ID_scbrs.erase(id);
+
+			gs::lastError("||Warning|| in 'newScbr(str)', couldn't init scrollbar, so addition is rejected. [id = ",id+"] : "+gs::lastError());
+			return false;
+		}
+
+		_sbim_.addInGroup(id, r.first->second); //Une fois que tout est OK, on met le scrollbar dans le groupe d'accueil actif.
+	}
+
+	return r.second;
+}
+
+
+void INTERNAL_USE_showScbrsOfGroup(const Group& group, Renderer* ren)
+{
+	if(not group.is_active) return;
+
+	SBIM::R res;
+
+	for(int id : group.int_scbrs)
+	{
+		if(_sbim_.containsScbr(id, res)) //Sécurité
+			res.int_scbr_it->second.show(ren);
+	}
+
+	for(const std::string& id : group.str_scbrs)
+	{
+		if(_sbim_.containsScbr(id, res)) //Sécurité
+			res.str_scbr_it->second.show(ren);
+	}
+}
+
+
+void showScbrs(Renderer* ren) //tous
+{
+	for(const auto& [group_id, group] : _sbim_.m_int_ID_groups)
+		INTERNAL_USE_showScbrsOfGroup(group, ren);
+
+	for(const auto& [group_id, group] : _sbim_.m_str_ID_groups)
+		INTERNAL_USE_showScbrsOfGroup(group, ren);
+}
+
+
+void showScbrs(Renderer* ren, int group_id)
+{
+	bool is_ok;
+	INTERNAL_USE_showScbrsOfGroup(INTERNAL_USE_getGroup(group_id, is_ok), ren);
+}
+
+void showScbrs(Renderer* ren, const std::string& group_id)
+{
+	bool is_ok;
+	INTERNAL_USE_showScbrsOfGroup(INTERNAL_USE_getGroup(group_id, is_ok), ren);
+}
+
+
+std::vector<Scrollbar*> INTERNAL_USE_getActiveScbrs()
+{
+	std::vector<Scrollbar*> atv_scbrs; // "active scrollbars"
+	SBIM::R res;
+
+	std::vector<Group*> groups;
+	for(auto& [_i, group] : _sbim_.m_int_ID_groups) groups.push_back(&group);
+	for(auto& [_s, group] : _sbim_.m_str_ID_groups) groups.push_back(&group);
+
+
+	for(Group* g : groups)
+	{
+		if(not g) continue;
+		Group& group = *g;
+
+		if(not group.is_active) continue;
+
+		for(int id : group.int_scbrs) //Parcours des identifiants int des scrollbars de ce groupe
+		{
+			if(_sbim_.containsScbr(id, res)) //Récupération des scrollbars correspondants
+				atv_scbrs.push_back(&res.int_scbr_it->second);
+		}
+
+		for(const std::string& id : group.str_scbrs) //Même chose pour les identifiants str
+		{
+			if(_sbim_.containsScbr(id, res))
+				atv_scbrs.push_back(&res.str_scbr_it->second);
+		}
+	}
+
+	return atv_scbrs;
+}
+
+
+
+
+void updateScrollbarsAndBtns(float dt)
+{
+	#ifdef GSLIB_RAYLIB_BACKEND
+	INTERNAL_USE_checkScrollbarsAndBtnsEvent();
+	#endif // GSLIB_RAYLIB_BACKEND
+
+	bool INTERNAL__check_events = false; //Pour ne pas traiter les events deux fois par élément.
+
+	for(Button* btn : INTERNAL_USE_getActiveBtns())
+		if(btn)
+			btn->update(dt, INTERNAL__check_events);
+
+	for(Scrollbar* bar :  INTERNAL_USE_getActiveScbrs())
+		if(bar)
+			bar->update(INTERNAL__check_events);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//==============================================================================//
+//==============================================================================//
+//==============================================================================//
+
+
+
+
+Button::~Button()
+{
+	if(m.acquire_texture_unloading_responsibility)
+		if(m.texture)
+			gs::destroyTexture(m.texture);
+}
+
+
+
+bool Button::init(FRect area, Btn_Param param)
+{
+	param.size.x = area.w;
+	param.size.y = area.h;
+	return init(Vec2f(area.x, area.y), param);
+}
+
+bool Button::init(Vec2f pos, const Btn_Param& param)
+{
+	if(m_is_init)
+	{
+		gs::lastError("in 'Button::init()', button already init.");
+		return false;
+	}
+
+	if(param.size.x <= 0 or param.size.y <= 0)
+	{
+		gs::lastError("in 'Button::init()', given size is invalid (negative size or empty rect).");
+		return false;
+	}
+
+	m_pos = pos;
+	m = param;
+
+	m_is_init = true;
 	return true;
 }
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-//==============================================================================//
-//==============================================================================//
-//==============================================================================//
-
-
-
-Button::Button()
-{
-	INTERNAL_USE_addButton(*this, m_button_id);
-};
-
-Button::~Button()
-{
-	// removeButton ?
-}
-
-
-
-bool Button::init(Renderer* ren, FRect area, const char* img_file_path)
-{
-	if(m_is_init)
-	{
-		gs::lastError("in 'Button::init()', button already init. ");
-		return false;
-	}
-
-	if(area.w <= 0 or area.h <= 0)
-	{
-		gs::lastError("in 'Button::init()', given area is invalid (negative size or empty rect). ");
-		return false;
-	}
-
-	m_area = area;
-
-	m_texture_dest_size.x = m_area.w;
-	m_texture_dest_size.y = m_area.h;
-
-	m_text_dest_size.x = m_area.w;
-	m_text_dest_size.y = m_area.h;
-
-	bool success = true;
-
-	if(img_file_path)
-	//if(ren)
-	{
-		m_texture = gs::loadTexture(ren, img_file_path);
-
-		if(not m_texture)
-		{
-			gs::lastError(gs::str("from 'Button::init()' : ")+gs::lastError());
-			success = false;
-		}
-		else
-		{
-			m_show_img = true;
-			gs::addToClearAtTheEnd(m_texture);
-		}
-	}
-
-
-	m_is_init = true;
-	return success;
-}
-
-bool Button::loadTexture(Renderer* ren, const char* img_file_path)
+bool Button::loadTexture(Renderer* ren, const std::string& img_file_path)
 {
 	if(not m_is_init)
 	{
@@ -358,46 +791,68 @@ bool Button::loadTexture(Renderer* ren, const char* img_file_path)
 		return false;
 	}
 
-	m_texture = gs::loadTexture(ren, img_file_path);
+	Texture* texture = gs::loadTexture(ren, img_file_path);
 
-	if(not m_texture)
+	if(not texture)
 	{
 		gs::lastError(gs::str("from 'Button::init()' : ")+gs::lastError());
 		return false;
 	}
-	else
-	{
-		m_show_img = true;
-		gs::addToClearAtTheEnd(m_texture);
-	}
-
-
-	return true;
+	
+	//gs::addToClearAtTheEnd(m_texture); //Non puisqu'il y a le 'acquire_unloading_responsibility' à 'true'.
+	return setTexture(texture, true);
 }
 
-bool Button::setTexture(Texture* texture)
+bool Button::setTexture(Texture* texture, bool acquire_unloading_responsibility)
 {
 	if(not m_is_init)
 	{
-		gs::lastError("In 'Button::setTexture()', button not yet init. ");
+		gs::lastError("In 'Button::setTexture()', button not yet init.");
 		return false;
 	}
 
-	if(texture)
+	if(not texture)
 	{
-		gs::addToClearAtTheEnd(texture);
-		m_texture = texture;
-		m_show_img = true;
-		return true;
+		gs::lastError("In 'Button::setTexture()', given texture is invalid.");
+		return false;
 	}
-	else
-		gs::lastError("In 'Button::setTexture()', given texture is invalid. ");
 
-	return false;
+	//Gestion de la précédente texture
+	if(m.texture and m.acquire_texture_unloading_responsibility)
+		gs::destroyTexture(m.texture);
+
+	m.texture = texture;
+	m.acquire_texture_unloading_responsibility = acquire_unloading_responsibility;
+		
+	return true;
 }
 
-bool Button::show(Renderer* ren)
+
+void Button::update(float dt, bool INTERNAL__check_events)
 {
+	if(not m_is_init) return;
+
+	#ifdef GSLIB_RAYLIB_BACKEND
+		if(INTERNAL__check_events)
+			INTERNAL_USE_checkEvents();
+	#endif // GSLIB_RAYLIB_BACKEND
+
+	bool down_click_occured = not m_is_prev_down and m_is_down;
+	bool released = m_is_prev_down and not m_is_down;
+
+	m_is_prev_down = m_is_down;
+
+	if(down_click_occured and m.down_click_callback)
+		m.down_click_callback(*this, m.callback_arg);
+
+	if(released and m.release_callback)
+		m.release_callback(*this, m.callback_arg);
+}
+
+bool Button::show(Renderer* ren) const
+{
+	if(not enabled()) return true;
+
 	if(not m_is_init)
 	{
 		gs::lastError("In 'Button::show()', button not yet init. ");
@@ -408,362 +863,206 @@ bool Button::show(Renderer* ren)
 	bool success = true;
 	Blend_Mode blend_mode = BLENDMODE_BLEND;
 
-	if(m_show_area)
+	FRect area{m_pos.x,m_pos.y,m.size.x,m.size.y};
+
+	if(not m.texture)
 	{
-		FColor curr_col;
+		Color curr_col = m.idle_color;
 
-		if(m_active_state)
-			curr_col = m_active_color;
+		if(m_is_down)
+			curr_col = m.down_color;
 
-		else
-			curr_col = m_idle_color;
-
-		gs::drawRect(ren, &m_area, color(curr_col), true, &blend_mode);
-
-		if(m_clicked_in)
-			gs::drawRect(ren, &m_area, color(m_clicked_in_color), true, &blend_mode);;
+		gs::drawRect(ren, &area, curr_col, true, &blend_mode);
 	}
-
-	if(m_show_img)
+	else
 	{
-		if(m_texture)
+		//Détermination d'un rectangle source pour la texture.
+		FRect src_rect{0.f,0.f,0.f,0.f};
+
+		if(m.texture_tile_size.x > 0 and m.texture_tile_size.y > 0) //Si une taille de tuile correcte est mentionnée
 		{
-			FRect dest_rect={
-				m_area.x+m_texture_offset.x,
-				m_area.y+m_texture_offset.y,
-				static_cast<float>(m_texture_dest_size.x),
-				static_cast<float>(m_texture_dest_size.y)
-			};
+			src_rect.w = m.texture_tile_size.x;
+			src_rect.h = m.texture_tile_size.y;
 
-			bool res = drawTexture(ren, m_texture, nullptr, &dest_rect);
+			Vec2i tile_pos = m.idle_tile_pos;
+			if(m_is_down)
+				tile_pos = m.down_tile_pos;
 
-			if(!res)
-			{
-				gs::lastError(gs::str("In 'Button::show()', show img failed : ")+gs::str(Backend_GetError()));
-				success = false;
-			}
+			src_rect.x = src_rect.w*tile_pos.x;
+			src_rect.y = src_rect.h*tile_pos.y;
 		}
-	}
+		else //Sinon on considère toute la texture
+		{
+			Vec2f img_size = gs::getTextureSize(m.texture);
+			src_rect.w = img_size.x;
+			src_rect.h = img_size.y;
+		}
 
-
-
-	if(m_show_text)
-	{
-		FRect dest_rect={
-			m_area.x+m_text_offset.x,
-			m_area.y+m_text_offset.y,
-			static_cast<float>(m_text_dest_size.x),
-			static_cast<float>(m_text_dest_size.y)
-		};
-
-		bool res = drawTexture(ren, m_text_texture, nullptr, &dest_rect);
+		bool res = gs::drawTexture(ren, m.texture, &src_rect, &area);
 
 		if(!res)
 		{
-			gs::lastError(gs::str("In 'Button::show()', show text failed : ")+gs::str(Backend_GetError()));
+			gs::lastError(gs::str("In 'Button::show()', show img failed : ")+gs::str(Backend_GetError()));
 			success = false;
 		}
 	}
 
 
 	if(m_mouse_in)
-		gs::drawRect(ren, &m_area, color(m_mouse_in_color), true, &blend_mode);
+		gs::drawRect(ren, &area, m.mouse_in_color, true, &blend_mode);
 
-	if(m_clicked_in)
-		gs::drawRect(ren, &m_area, color(m_clicked_in_color), false);
-		//Car l'image peut avoir caché la représentation graphique du "clicked in".
+
+	//Dessin du texte
+	{
+		if(not _sbim_.m_tlsc.isInit_TLSC())
+			_sbim_.initTheTLSC(ren);
+		
+		if(_sbim_.m_tlsc.isInit_TLSC())
+			_sbim_.showBtnText(ren, "test", area);
+		
+	}
 
 	return success;
 }
 
-bool Button::setShow(wi::Button_Field field, bool new_state)
-{
-	bool previous_state;
 
-	if(field == wi::AREA)
-	{
-		previous_state = m_show_area;
-		m_show_area = new_state;
-		return previous_state;
-	}
-	else
-	if(field == wi::IMG)
-	{
-		previous_state = m_show_img;
-		m_show_img = new_state;
-		return previous_state;
-	}
-	else
-	if(field == wi::TEXT)
-	{
-		previous_state = m_show_text;
-		m_show_text = new_state;
-		return previous_state;
-	}
-
-	return false;
-}
 
 void Button::setArea(FRect new_area)
 {
 	if(not m_is_init)
 	{
-		gs::lastError("In 'Button::setArea()', button not yet init. ");
+		gs::lastError("In 'Button::setArea()', button not yet init.");
 		return;
 	}
 
-	m_area = new_area;
-
-	m_texture_dest_size.x = m_area.w;
-	m_texture_dest_size.y = m_area.h;
-
-	m_text_dest_size.x = m_area.w;
-	m_text_dest_size.y = m_area.h;
-}
-
-void Button::incrArea(short x, short y, short w, short h)
-{
-	if(not m_is_init)
+	if(new_area.w <= 0.f or new_area.h <= 0.f)
 	{
-		gs::lastError("In 'Button::incrArea()', button not yet init. ");
+		gs::lastError("In 'Button::setArea()', invalid given size.");
 		return;
 	}
 
-	m_area.x += x;
-	m_area.y += y;
-	m_area.w += w;
-	m_area.h += h;
-
-	m_texture_dest_size.x = m_area.w;
-	m_texture_dest_size.y = m_area.h;
-
-	m_text_dest_size.x = m_area.w;
-	m_text_dest_size.y = m_area.h;
+	m_pos.x = new_area.x;
+	m_pos.y = new_area.y;
+	m.size.x = new_area.w;
+	m.size.y = new_area.h;
 }
 
-void Button::setActiveState(bool new_state)
+void Button::setPos(float x, float y)
 {
 	if(not m_is_init)
 	{
-		//gs::lastError
+		gs::lastError("In 'Button::setPos()', button not yet init.");
 		return;
 	}
 
-	m_active_state = new_state;
+	m_pos.x = x;
+	m_pos.y = y;
 }
 
-void Button::incrOffset(wi::Button_Field field, short x, short y)
+void Button::incrPos(float x, float y)
 {
 	if(not m_is_init)
 	{
-		gs::lastError("In 'Button::incrOffset()', button not yet init. ");
+		gs::lastError("In 'Button::incrPos()', button not yet init.");
 		return;
 	}
 
-	if(field == wi::IMG)
-	{
-		m_texture_offset.x += x;
-		m_texture_offset.y += y;
-	}
-	else
-	if(field == wi::TEXT)
-	{
-		m_text_offset.x += x;
-		m_text_offset.y += y;
-	}
+	m_pos.x += x;
+	m_pos.y += y;
 }
 
-void Button::setDestSize(wi::Button_Field field, short w, short h)
+void Button::setDownState(bool new_state)
 {
 	if(not m_is_init)
 	{
-		gs::lastError("In 'Button::setDestSize()', button not yet init. ");
+		gs::lastError("In 'Button::setDownState()', button not yet init.");
 		return;
 	}
 
-	if(field == wi::IMG)
-	{
-		m_texture_dest_size.x = w;
-		m_texture_dest_size.y = h;
-	}
-	else
-	if(field == wi::TEXT)
-	{
-		m_text_dest_size.x = w;
-		m_text_dest_size.y = h;
-	}
-
+	m_is_down = new_state;
 }
 
-void Button::setColor(wi::Button_State target_state, FColor c)
+
+
+void Button::setColor(wi::Button_State target_state, Color c)
 {
 	if(not m_is_init)
 	{
-		gs::lastError("In 'Button::setColor()', button not yet init. ");
+		gs::lastError("In 'Button::setColor()', button not yet init.");
 		return;
 	}
 
 	switch(target_state)
 	{
-		case wi::IDLE: m_idle_color = c; break;
-		case wi::ACTIVE: m_active_color = c; break;
-		case wi::MOUSE_IN: m_mouse_in_color = c; break;
-		case wi::CLICKED_IN: m_clicked_in_color = c; break;
-
-		default:
-			break;
+		case wi::BTN_IDLE: m.idle_color = c; break;
+		case wi::BTN_DOWN: m.down_color = c; break;
+		case wi::BTN_MOUSE_IN: m.mouse_in_color = c; break;
+		default: break;
 	}
 }
 
-void Button::setTargetEvent(uint32_t target_event)
+
+
+
+
+bool Button::setDownClickCallback(void (*callback)(const Button&, void*))
 {
 	if(not m_is_init)
 	{
-		gs::lastError("In 'Button::setTargetEvent()', button not yet init. ");
-		return;
-	}
-
-	m_target_action = (wi::Action_Val)target_event;
-}
-
-
-void Button::setTargetButtonEvent(uint8_t id)
-{
-	if(not m_is_init)
-	{
-		gs::lastError("In 'Button::setTargetButtonEvent()', button not yet init. ");
-		return;
-	}
-
-	m_target_button_id = id;
-}
-
-bool Button::setCallbackOfTargetEvent(int (*callback)(void*), void* arg)
-{
-	if(not m_is_init)
-	{
-		gs::lastError("In 'Button::setCallbackOfTargetEvent()', button not yet init. ");
+		gs::lastError("In 'Button::setDownClickCallback()', button not yet init.");
 		return false;
 	}
 
-	m_callback = callback;
-	m_callback_arg = arg;
+	m.down_click_callback = callback;
+	return true;
+}
+
+bool Button::setUpClickCallback(void (*callback)(const Button&, void*))
+{
+	if(not m_is_init)
+	{
+		gs::lastError("In 'Button::setUpClickCallback()', button not yet init.");
+		return false;
+	}
+
+	m.release_callback = callback;
 	return true;
 }
 
 
-bool Button::switchText(std::string to_witch) //Avec 'to_witch' != 'active' et de 'idle', ça switch sur l'autre qui n'est pas actuellement.
-{
-	if(not m_is_init)
-	{
-		gs::lastError("In 'Button::switchText()', button not yet init. ");
-		return false;
-	}
-
-	std::string res = INTERNAL_USE_switchText(*this, to_witch);
-
-	if(not res.empty())
-	{
-		gs::lastError(gs::str("In 'Button::switchText()', ")+res);
-		return false;
-	}
-
-	return true;
-}
-
-bool Button::setSwitchTextByState(bool new_state)
-{
-	if(not m_is_init)
-	{
-		gs::lastError("In 'Button::setSwitchTextByState()', button not yet init. ");
-		return false;
-	}
-
-	m_switch_text_by_state = new_state;
-	return true;
-}
 
 
-bool Button::isInit() const
-{return m_is_init;}
 
-Texture* Button::getTexture()
-{return m_texture;}
 
-bool Button::getShow(wi::Button_Field field)
-{
-	if(field == wi::AREA)
-		return m_show_area;
-	else
-	if(field == wi::IMG)
-		return m_show_img;
-	else
-	if(field == wi::TEXT)
-		return m_show_text;
+bool Button::isInit() const {return m_is_init;}
 
-	return false;
-}
+Texture* Button::getTexture() {return m.texture;}
 
-FRect Button::getArea() const
-{return m_area;}
+FRect Button::getArea() const {return FRect(m_pos.x,m_pos.y,m.size.x,m.size.y);}
 
-bool Button::getActiveState() const
-{return m_active_state;}
+bool Button::isDown() const {return m_is_down;}
 
-Vec2i Button::getOffset(wi::Button_Field field) const
-{
-	if(field == wi::IMG)
-		return m_texture_offset;
 
-	if(field == wi::TEXT)
-		return m_text_offset;
-	return {0,0};
-}
-
-Vec2i Button::getDestSize(wi::Button_Field field) const
-{
-	if(field == wi::IMG)
-		return m_texture_dest_size;
-
-	if(field == wi::TEXT)
-		return m_text_dest_size;
-
-	return {static_cast<int>(m_area.w), static_cast<int>(m_area.h)};
-}
-
-FColor Button::getColor(wi::Button_State target_state) const
+Color Button::getColor(wi::Button_State target_state) const
 {
 	switch(target_state)
 	{
-		case wi::IDLE: return m_idle_color;
-		case wi::ACTIVE: return m_active_color;
-		case wi::MOUSE_IN: return m_mouse_in_color;
-		case wi::CLICKED_IN: return m_clicked_in_color;
-
-		default:
-			break;
+		case wi::BTN_IDLE: return m.idle_color;
+		case wi::BTN_DOWN: return m.down_color;
+		case wi::BTN_MOUSE_IN: return m.mouse_in_color;
+		default: break;
 	}
 
 	return {0,0,0,0};
 }
 
-bool Button::mouseIn() const
-{return m_mouse_in;}
+bool Button::isMouseIn() const {return m_mouse_in;}
 
-bool Button::clickedIn() const
-{return m_clicked_in;}
 
-uint32_t Button::getTargetEvent()
-{return m_target_action;}
 
-uint8_t Button::getTargetButtonEvent()
-{return m_target_button_id;}
 
-int Button::getLastCallbackReturnVal()
-{return m_last_callback_return_val;}
 
-bool Button::getSwitchTextByState()
-{return m_switch_text_by_state;}
+
 
 
 
@@ -784,41 +1083,29 @@ bool Button::getSwitchTextByState()
 //==============================================================================//
 //==============================================================================//
 
-Scrollbar::Scrollbar()
+
+bool Scrollbar::init(const Scbr_Param& param) //Optionnelle
 {
-	try{
-
-	//scrollbars_set.insert(this);
-	scrollbars_vec.push_back(this);
-
-	}catch(std::exception& excep){gs::lastError("excep in Scrollbar::Scrollbar() : ",excep.what(),"\n");}
-}
-
-Scrollbar::~Scrollbar()
-{
-	//scrollbars_set.erase(this);
-	for(int i=0; i<scrollbars_vec.size(); ++i)
+	if(param.orient != wi::VERTICAL and param.orient != wi::HORIZONTAL)
 	{
-		Scrollbar* bar = scrollbars_vec.at(i);
-		if(bar == this)
-		{
-			scrollbars_vec.erase(scrollbars_vec.begin()+i);
-			break; //Il n'y a qu'une seule suppression.
-		}
+		gs::lastError("||Warning|| in 'Scrollbar::init()', invalid 'param.orient'.");
+		return false;
 	}
-}
 
+	m = param;
+	return true;
+}
 
 
 void Scrollbar::checkParam()
 {
-	if(m_len < m_min_len)
-		m_len = m_min_len;
+	if(m.len < m.min_len)
+		m.len = m.min_len;
 
-	if(m_thickness < m_min_len)
-		m_thickness = m_min_thickness;
+	if(m.thickness < m.min_len)
+		m.thickness = m.min_thickness;
 
-	int max_pixel_progr = m_len - m_moveable_thing_len;
+	int max_pixel_progr = m.len - m.moveable_thing_len;
 	if(max_pixel_progr < 0) max_pixel_progr = 0;
 
 	if(m_pixel_progr > max_pixel_progr)
@@ -831,7 +1118,7 @@ void Scrollbar::checkParam()
 
 void Scrollbar::incrProgr(int val)
 {
-	int max_pixel_progr = m_len - m_moveable_thing_len;
+	int max_pixel_progr = m.len - m.moveable_thing_len;
 	if(max_pixel_progr < 0) max_pixel_progr = 0;
 
 	int new_progr = m_pixel_progr + val;
@@ -846,29 +1133,29 @@ void Scrollbar::incrProgr(int val)
 }
 
 
-void Scrollbar::setAreaRects(Rect& area, Rect& moveable_thing_area) const
+void Scrollbar::getAreaRects(Rect& area, Rect& moveable_thing_area) const
 {
 	//Définition de la zone globale de la scrollbar, et de l'élément amovible.
-	area.x = m_pos.x;
-	area.y = m_pos.y;
-	if(m_orient == wi::VERTICAL)
+	area.x = m.pos.x;
+	area.y = m.pos.y;
+	if(m.orient == wi::VERTICAL)
 	{
-		area.w = m_thickness;
-		area.h = m_len;
+		area.w = m.thickness;
+		area.h = m.len;
 
 		moveable_thing_area.x = area.x;
 		moveable_thing_area.y = area.y + m_pixel_progr;
 		moveable_thing_area.w = area.w;
-		moveable_thing_area.h = m_moveable_thing_len;
+		moveable_thing_area.h = m.moveable_thing_len;
 	}
 	else
 	{
-		area.w = m_len;
-		area.h = m_thickness;
+		area.w = m.len;
+		area.h = m.thickness;
 
 		moveable_thing_area.x = area.x + m_pixel_progr;
 		moveable_thing_area.y = area.y;
-		moveable_thing_area.w = m_moveable_thing_len;
+		moveable_thing_area.w = m.moveable_thing_len;
 		moveable_thing_area.h = area.h;
 	}
 }
@@ -883,14 +1170,14 @@ bool Scrollbar::show(Renderer* ren)
 	static Rect moveable_thing_area;
 
 	//Définition de la zone globale de la scrollbar, et de l'élément amovible.
-	setAreaRects(area, moveable_thing_area);
+	getAreaRects(area, moveable_thing_area);
 	FRect area_f = frect(area);
 	FRect moveable_thing_area_f = frect(moveable_thing_area);
 
 	bool success=true;
-	success = success & gs::drawRect(ren, &area_f, color(m_bg_col), true);
-	success = success & gs::drawRoundedRect(ren, moveable_thing_area_f, 0.35, color(m_fg_col), true);
-	success = success & gs::drawRect(ren, &area_f, color(m_bg_col), false);
+	success = success & gs::drawRect(ren, &area_f, m.bg_col, true);
+	success = success & gs::drawRoundedRect(ren, moveable_thing_area_f, 0.35, m.fg_col, true);
+	success = success & gs::drawRect(ren, &area_f, m.bg_col, false);
 
 
 	if(not success)
@@ -900,8 +1187,13 @@ bool Scrollbar::show(Renderer* ren)
 }
 
 
-void Scrollbar::update()
+void Scrollbar::update(bool INTERNAL__check_events)
 {
+	#ifdef GSLIB_RAYLIB_BACKEND
+		if(INTERNAL__check_events)
+			INTERNAL_USE_checkEvents();
+	#endif // GSLIB_RAYLIB_BACKEND
+
 	checkParam();
 
 	if(m_to_move_buf != 0)
@@ -917,20 +1209,17 @@ void Scrollbar::update()
 
 
 
-bool Scrollbar::moved() const
-{
-	return m_moved;
-}
+bool Scrollbar::moved() const {return m_moved;}
 
 
 unsigned int Scrollbar::setProgr(unsigned int val)
 {
 	unsigned int prev_progr = m_pixel_progr;
 
-	double max_pixel_progr = m_len - m_moveable_thing_len;
+	double max_pixel_progr = m.len - m.moveable_thing_len;
 	if(max_pixel_progr < 0) max_pixel_progr = 0;
 
-	m_pixel_progr = (unsigned int)(max_pixel_progr*(double(val)/double(m_max_val)));
+	m_pixel_progr = (unsigned int)(max_pixel_progr*(double(val)/double(m.max_val)));
 	checkParam();
 
 	return prev_progr;
@@ -941,12 +1230,12 @@ unsigned int Scrollbar::getProgr()
 {
 	checkParam();
 
-	int max_pixel_progr = m_len - m_moveable_thing_len;
+	int max_pixel_progr = m.len - m.moveable_thing_len;
 	if(max_pixel_progr < 0) max_pixel_progr = 0;
 
 	double progr_percent = double(m_pixel_progr) / double(max_pixel_progr);
 
-	unsigned int val = (unsigned int)(progr_percent * double(m_max_val));
+	unsigned int val = (unsigned int)(progr_percent * double(m.max_val));
 
 	return val;
 }
@@ -955,87 +1244,72 @@ unsigned int Scrollbar::getProgr()
 
 wi::Scrollbar_Orient Scrollbar::setOrientation(const wi::Scrollbar_Orient& new_orient)
 {
-	wi::Scrollbar_Orient prev_orient = m_orient;
-	m_orient = new_orient;
+	wi::Scrollbar_Orient prev_orient = m.orient;
+	m.orient = new_orient;
 	return prev_orient;
 }
 
-wi::Scrollbar_Orient Scrollbar::getOrientation() const
-{
-	return m_orient;
-}
+wi::Scrollbar_Orient Scrollbar::getOrientation() const {return m.orient;}
 
 
 unsigned int Scrollbar::setLen(unsigned int new_len)
 {
-	unsigned int prev_len = m_len;
-	m_len = new_len;
-	m_moveable_thing_len = static_cast<unsigned int>(double(m_len)*0.1);
+	unsigned int prev_len = m.len;
+	m.len = new_len;
+	m.moveable_thing_len = static_cast<unsigned int>(double(m.len)*0.1);
 
 	return prev_len;
 }
 
 
-unsigned int Scrollbar::getLen() const
-{
-	return m_len;
-}
+unsigned int Scrollbar::getLen() const {return m.len;}
 
 
 
 unsigned int Scrollbar::setThickness(unsigned int new_thickness)
 {
-	unsigned int prev_thickness = m_thickness;
-	m_thickness = new_thickness;
+	unsigned int prev_thickness = m.thickness;
+	m.thickness = new_thickness;
 	return prev_thickness;
 }
 
-unsigned int Scrollbar::getThickness() const
-{
-	return m_thickness;
-}
+unsigned int Scrollbar::getThickness() const {return m.thickness;}
 
 
 
 
 Vec2i Scrollbar::setPos(Vec2i new_pos)
 {
-	Vec2i prev_pos = m_pos;
-	m_pos = new_pos;
+	Vec2i prev_pos = m.pos;
+	m.pos = new_pos;
 	return prev_pos;
 }
 
 
-Vec2i Scrollbar::getPos() const
-{
-	return m_pos;
-}
+Vec2i Scrollbar::getPos() const {return m.pos;}
 
 
 
 unsigned int Scrollbar::setMaxVal(unsigned int max_val)
 {
-	unsigned int prev_max_v = m_max_val;
-	m_max_val = max_val;
+	unsigned int prev_max_v = m.max_val;
+	m.max_val = max_val;
 	return prev_max_v;
 }
 
 
-unsigned int Scrollbar::getMaxVal() const
+unsigned int Scrollbar::getMaxVal() const {return m.max_val;}
+
+
+
+Color Scrollbar::setColor(const wi::Scrollbar_Area& area, const Color& color)
 {
-	return m_max_val;
-}
-
-
-
-FColor Scrollbar::setColor(const wi::Scrollbar_Area& area, const FColor& color)
-{
-	FColor prev_col;
+	Color prev_col;
 
 	switch(area)
 	{
-		case wi::MAIN_AREA: prev_col = m_bg_col; m_bg_col = color; break;
-		case wi::MOVEABLE_THING_AREA: prev_col = m_fg_col; m_fg_col = color; break;
+		case wi::MAIN_AREA: prev_col = m.bg_col; m.bg_col = color; break;
+		case wi::MOVEABLE_THING_AREA: prev_col = m.fg_col; m.fg_col = color; break;
 		default : break;
 	}
 
@@ -1043,16 +1317,16 @@ FColor Scrollbar::setColor(const wi::Scrollbar_Area& area, const FColor& color)
 }
 
 
-FColor Scrollbar::getColor(const wi::Scrollbar_Area& area) const
+Color Scrollbar::getColor(const wi::Scrollbar_Area& area) const
 {
 	switch(area)
 	{
-		case wi::MAIN_AREA: return m_bg_col;
-		case wi::MOVEABLE_THING_AREA: return m_fg_col;
+		case wi::MAIN_AREA: return m.bg_col;
+		case wi::MOVEABLE_THING_AREA: return m.fg_col;
 		default : break;
 	}
 
-	return m_bg_col;
+	return m.bg_col;
 }
 
 
@@ -1064,7 +1338,7 @@ Rect Scrollbar::getArea(const wi::Scrollbar_Area& area) const
 	static Rect moveable_thing_area_rect;
 
 	//Définition de la zone globale de la scrollbar, et de l'élément amovible.
-	setAreaRects(area_rect, moveable_thing_area_rect);
+	getAreaRects(area_rect, moveable_thing_area_rect);
 
 	switch(area)
 	{

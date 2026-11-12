@@ -282,11 +282,10 @@ Texture* Game::loadTexture(const std::string& pth, bool nearest)
 		return nullptr;
 	}
 
-	Texture* res = ::gs::loadTexture(ren_, pth, nearest);
+	Texture* res = ::gs::loadTexture(ren(), pth, nearest);
 	if(res == nullptr)
-	{
 		gs::lastError(gs::str("from 'gs::Game::loadTexture()' : ") +gs::lastError());
-	}
+	
 	return res;
 };
 
@@ -299,7 +298,7 @@ Texture* Game::loadTexture(const std::string& pth, bool nearest)
 
 bool Game::drawTile(Texture *tileset, FRect src, FRect dest, bool isRenderTheTarget)
 {
-	return gs::drawTile(ren_, nullptr, tileset, src, dest, isRenderTheTarget);
+	return gs::drawTile(ren(), nullptr, tileset, src, dest, isRenderTheTarget);
 };
 
 

@@ -826,11 +826,11 @@ bool Backend__Game::InitByAssociateTo(SDL_Window *W, SDL_Renderer *newR )
 //____________________________________________________________________________________
 //____________________________________________________________________________________
 
-		/*simple geters*/
+
 //----------------------------------------------
-SDL_Renderer *Backend__Game::ren() const {return ren_;};
+SDL_Renderer* Backend__Game::ren() const {return ren_;};
 //----------------------------------------------
-SDL_Window *Backend__Game::win() const {return win_;};
+SDL_Window* Backend__Game::win() const {return win_;};
 
 
 
@@ -2155,7 +2155,7 @@ bool Backend__Text_Window::processEvent(SDL_Event& event, SDL_Window* win)
 		!mb.m_curr_active_line_idx or
 		!mb.m_inputs)
 	{
-		gs::lastError("||INTERAL|| : in 'Backend__Text_Window::processEvent()', after 'INTERNAL_USE_getMembersPtrs_forEventProcessing()', have invalid ptr.");
+		gs::lastError("||INTERNAL|| : in 'Backend__Text_Window::processEvent()', after 'INTERNAL_USE_getMembersPtrs_forEventProcessing()', have invalid ptr.");
 		return false;
 	}
 	bool& m_is_init = *mb.m_is_init;
@@ -2286,50 +2286,29 @@ bool Backend__Text_Window::processEvent(SDL_Event& event, SDL_Window* win)
 //____________________________________________________________________________________
 //____________________________________________________________________________________
 
-std::vector<Button*>& INTERNAL_USE_getButtonsVec();
-std::vector<Scrollbar*>& INTERNAL_USE_getScrollbarsVec();
+std::vector<Button*> INTERNAL_USE_getActiveBtns();
+std::vector<Scrollbar*> INTERNAL_USE_getActiveScbrs();
 
-void widgetsProcessEvent(SDL_Event& ev)
+
+void scrollbarsAndBtnsProcessEvent(SDL_Event& ev)
 {
-	std::vector<Button*>& buttons_vec = INTERNAL_USE_getButtonsVec();
-	std::vector<Scrollbar*>& scrollbars_vec = INTERNAL_USE_getScrollbarsVec();
+	if( ev.type != SDL_EVENT_MOUSE_MOTION
+	and ev.type != SDL_EVENT_MOUSE_BUTTON_UP
+	and ev.type != SDL_EVENT_MOUSE_BUTTON_DOWN)
+		return;
 
-	FPoint mouse_curr_pos;
+	std::vector<Button*> buttons_vec = INTERNAL_USE_getActiveBtns();
+	std::vector<Scrollbar*> scrollbars_vec = INTERNAL_USE_getActiveScbrs();
 
-	SDL_GetMouseState(&mouse_curr_pos.x, &mouse_curr_pos.y);
-
-
+	bool click_catched=false;
+	
 	for(Button* btn : buttons_vec)
+	if(btn)
 	{
-		if(not btn)
-			continue;
-
-		Rect btn_area = rect(btn->getArea());
-		Point mouse_curr_pos_i = Point(static_cast<int>(mouse_curr_pos.x), static_cast<int>(mouse_curr_pos.y));
-
-		if(SDL_PointInRect(&mouse_curr_pos_i, &btn_area))
-		{
-			INTERNAL_USE_editState(*btn, wi::MOUSE_IN, true);
-
-			if(ev.type == btn->getTargetEvent())
-			{
-				if(ev.button.button == btn->getTargetButtonEvent())
-					INTERNAL_USE_editState(*btn, wi::CLICKED_IN, true);
-				else
-					INTERNAL_USE_editState(*btn, wi::CLICKED_IN, false);
-
-			}
-			else
-				INTERNAL_USE_editState(*btn, wi::CLICKED_IN, false);
-
-		}
-		else
-		{
-			INTERNAL_USE_editState(*btn, wi::MOUSE_IN, false);
-			INTERNAL_USE_editState(*btn, wi::CLICKED_IN, false);
-		}
+		btn->processEvent(ev, &click_catched);
+		
+		if(click_catched) break; //Au cas où des boutons se superposeraient, qu'un seul ne prenne l'événement de click qui leur serait commun.
 	}
-
 
 	for(Scrollbar* bar : scrollbars_vec)
 		if(bar)
@@ -2337,6 +2316,58 @@ void widgetsProcessEvent(SDL_Event& ev)
 
 }
 
+
+
+
+void Backend__Button::processEvent(const SDL_Event& ev, bool* INTERNAL__click_catched)
+{
+	//Récupération des membres requis ---------------------------------
+	INTERNAL__membersTransfer mb;
+	INTERNAL_USE_getMembersPtrs_forEventProcessing(mb);
+	if( !mb.m_pos or
+		!mb.m_size or
+		!mb.m_is_down or
+		!mb.m_mouse_in
+		)
+	{
+		gs::lastError("||INTERNAL|| : in 'Backend__Button::processEvent()', after 'INTERNAL_USE_getMembersPtrs_forEventProcessing()', have invalid ptr.");
+		return;
+	}
+	Vec2<float>& m_pos = *mb.m_pos;
+	Vec2<float>& m_size = *mb.m_size;
+	bool& m_is_down = *mb.m_is_down;
+	bool& m_mouse_in = *mb.m_mouse_in;
+	//------------------------------------------------------------------
+
+
+	Rect btn_area;
+	btn_area.x = m_pos.x; btn_area.y = m_pos.y;
+	btn_area.w = m_size.x; btn_area.h = m_size.y;
+	
+	Point mouse_pos;
+
+	if(ev.type == SDL_EVENT_MOUSE_MOTION)
+	{
+		mouse_pos.x = ev.motion.x;
+		mouse_pos.y = ev.motion.y;
+
+		m_mouse_in = gs::pointInRect(mouse_pos, btn_area);
+	}
+	else
+	if(ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN and ev.button.button == SDL_BUTTON_LEFT)
+	{
+		mouse_pos.x = ev.button.x;
+		mouse_pos.y = ev.button.y;
+
+		m_is_down = gs::pointInRect(mouse_pos, btn_area);
+
+		if(m_is_down and INTERNAL__click_catched) 
+			*INTERNAL__click_catched = true;
+	}
+	else
+	if(ev.type == SDL_EVENT_MOUSE_BUTTON_UP and ev.button.button == SDL_BUTTON_LEFT)
+		m_is_down = false;
+}
 
 
 
@@ -2350,7 +2381,7 @@ void Backend__Scrollbar::processEvent(const SDL_Event& ev)
 		!mb.m_to_move_buf
 		)
 	{
-		gs::lastError("||INTERAL|| : in 'Backend__Scrollbar::processEvent()', after 'INTERNAL_USE_getMembersPtrs_forEventProcessing()', have invalid ptr.");
+		gs::lastError("||INTERNAL|| : in 'Backend__Scrollbar::processEvent()', after 'INTERNAL_USE_getMembersPtrs_forEventProcessing()', have invalid ptr.");
 		return;
 	}
 	bool& m_mouse_clicked_in = *mb.m_mouse_clicked_in;
@@ -2363,7 +2394,7 @@ void Backend__Scrollbar::processEvent(const SDL_Event& ev)
 	static Rect moveable_thing_area;
 
 	//Définition de la zone globale de la scrollbar, et de l'élément amovible.
-	setAreaRects(area, moveable_thing_area);
+	getAreaRects(area, moveable_thing_area);
 
 
 	if(ev.type == SDL_EVENT_MOUSE_BUTTON_UP and ev.button.button == SDL_BUTTON_LEFT)
@@ -2388,9 +2419,6 @@ void Backend__Scrollbar::processEvent(const SDL_Event& ev)
 	}
 
 }
-
-
-
 
 
 

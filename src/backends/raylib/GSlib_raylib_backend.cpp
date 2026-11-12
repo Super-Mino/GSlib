@@ -140,7 +140,11 @@ void drawEnd(Renderer* ren) {EndDrawing();}
 
 
 
-Texture* loadTexture(Renderer* ren, const std::string& path, bool nearest) {return _textures_manager_.loadTexture(path); std::cout << "||Warning|| in 'loadTexture()', 'nearest' arg not yet took into account.\n";}
+Texture* loadTexture(Renderer* ren, const std::string& path, bool nearest) 
+{
+	std::cout << "||Warning|| in 'loadTexture()', 'nearest' arg not yet took into account.\n";
+	return _textures_manager_.loadTexture(path);
+}
 
 Surface* loadSurface(const std::string& img_path)
 {
@@ -154,7 +158,7 @@ Texture_Target* createTextureTarget(Renderer* ren, Vec2i size)
 }
 
 
-bool drawTile(Renderer* ren, Texture* target, Texture* tileset,
+bool drawTile(Renderer* ren, Texture_Target* target, Texture* tileset,
 					FRect src, FRect dest, bool takeInToAccountTheTarget)
 {
     if(not tileset)
@@ -440,17 +444,17 @@ Vector2 v2(Vec2<float> v) {return Vector2(v.x, v.y);}
 
 
 
-Renderer *Backend__Game::ren() const
+Renderer* Backend__Game::ren() 
 {
-	static Renderer COMP_ren;
-	if(isInit) return &COMP_ren; //Pour la compatibilité
+	
+	if(isInit) return &ren_; //Pour la compatibilité
 	return nullptr;
 };
 
-Window *Backend__Game::win() const
+Window* Backend__Game::win()
 {
-	static Window COMP_win;
-	if(isInit) return &COMP_win; //Pour la compatibilité
+	
+	if(isInit) return &win_; //Pour la compatibilité
 	return nullptr;
 };
 
@@ -821,6 +825,9 @@ bool Font::try_changeFontSource(const std::string& target_font_path)
 	
 	if(success)
 		m_font_path = target_font_path;
+	else
+		gs::lastError("||Warning|| in 'Font::try_changeFontSource()', invalid font path.");
+		
 
 	return success;
 }
@@ -1350,13 +1357,16 @@ std::vector<INTERNAL_USE_Mouse_Event> INTERNAL_USE_getMouseEvents()
 	return occured;
 }
 
-std::vector<Button*>& INTERNAL_USE_getButtonsVec();
-std::vector<Scrollbar*>& INTERNAL_USE_getScrollbarsVec();
 
-void INTERNAL_USE_checkWidgetsEvent()
+
+std::vector<Button*> INTERNAL_USE_getActiveBtns();
+std::vector<Scrollbar*> INTERNAL_USE_getActiveScbrs();
+
+
+void INTERNAL_USE_checkScrollbarsAndBtnsEvent()
 {
-	std::vector<Button*>& buttons_vec = INTERNAL_USE_getButtonsVec();
-	std::vector<Scrollbar*>& scrollbars_vec = INTERNAL_USE_getScrollbarsVec();
+	std::vector<Button*> buttons_vec = INTERNAL_USE_getActiveBtns();
+	std::vector<Scrollbar*> scrollbars_vec = INTERNAL_USE_getActiveScbrs();
 
 	
 	std::vector<INTERNAL_USE_Mouse_Event> occured_mouse_events = INTERNAL_USE_getMouseEvents();
@@ -1369,49 +1379,92 @@ void INTERNAL_USE_checkWidgetsEvent()
 		const Vec2f& mouse_pos = ms_ev.mouse_pos;
 		
 
+		bool click_catched=false;
 
 		for(Button* btn : buttons_vec)
+		if(btn)
 		{
-			if(not btn)
-				continue;
+			btn->INTERNAL_USE_checkEvent(ms_ev, &click_catched);
 
-			Rect btn_area = rect(btn->getArea());
-			Point mouse_pos_i = Point(int(mouse_pos.x), int(mouse_pos.y));
-
-			if(pointInRect(&mouse_pos_i, &btn_area))
-			{
-				INTERNAL_USE_editState(*btn, wi::MOUSE_IN, true);
-
-				if(event_type == btn->getTargetEvent())
-				{
-					if(mouse_btn == btn->getTargetButtonEvent())
-						INTERNAL_USE_editState(*btn, wi::CLICKED_IN, true);
-					else
-						INTERNAL_USE_editState(*btn, wi::CLICKED_IN, false);
-				
-				}
-				else
-					INTERNAL_USE_editState(*btn, wi::CLICKED_IN, false);
-
-			}
-			else
-			{
-				INTERNAL_USE_editState(*btn, wi::MOUSE_IN, false);
-				INTERNAL_USE_editState(*btn, wi::CLICKED_IN, false);
-			}
+			if(click_catched) break; //Au cas où des boutons se superposeraient, qu'un seul ne prenne l'événement de click qui leur serait commun.
 		}
-
-
-
 
 		for(Scrollbar* bar : scrollbars_vec)
 			if(bar)
 				bar->INTERNAL_USE_checkEvent(ms_ev);
-
 	}
 }
 
 
+
+
+void Backend__Button::INTERNAL_USE_checkEvents()
+{
+	std::vector<INTERNAL_USE_Mouse_Event> occured_mouse_events = INTERNAL_USE_getMouseEvents();
+		
+	for(const INTERNAL_USE_Mouse_Event& ms_ev : occured_mouse_events)
+		INTERNAL_USE_checkEvent(ms_ev);
+}
+
+
+void Backend__Button::INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event& mouse_event, bool* INTERNAL__click_catched)
+{
+	//Récupération des membres requis ---------------------------------
+	INTERNAL__membersTransfer mb;
+	INTERNAL_USE_getMembersPtrs_forEventProcessing(mb);
+	if( !mb.m_pos or
+		!mb.m_size or
+		!mb.m_is_down or
+		!mb.m_mouse_in
+		)
+	{
+		gs::lastError("||INTERNAL|| : in 'Backend__Button::processEvent()', after 'INTERNAL_USE_getMembersPtrs_forEventProcessing()', have invalid ptr.");
+		return;
+	}
+	Vec2<float>& m_pos = *mb.m_pos;
+	Vec2<float>& m_size = *mb.m_size;
+	bool& m_is_down = *mb.m_is_down;
+	bool& m_mouse_in = *mb.m_mouse_in;
+	//------------------------------------------------------------------
+
+	Rect btn_area;
+	btn_area.x = m_pos.x; btn_area.y = m_pos.y;
+	btn_area.w = m_size.x; btn_area.h = m_size.y;
+	
+
+	const uint32_t& event_type = mouse_event.type;
+	const uint32_t& mouse_btn = mouse_event.button;
+	Point mouse_pos = mouse_event.mouse_pos.toPoint();
+
+	//----------------------------------------------------
+
+	if(event_type == wi::DOWN_CLICK and mouse_btn == BK_MOUSE_BUTTON_LEFT)
+	{
+		m_is_down = gs::pointInRect(mouse_pos, btn_area);
+
+		if(m_is_down and INTERNAL__click_catched) 
+			*INTERNAL__click_catched = true;
+	}
+	else
+	if(event_type == wi::UP_CLICK and mouse_btn == BK_MOUSE_BUTTON_LEFT)
+		m_is_down = false;
+	
+	else
+		m_mouse_in = gs::pointInRect(mouse_pos, btn_area);
+}
+
+
+
+
+
+
+void Backend__Scrollbar::INTERNAL_USE_checkEvents()
+{
+	std::vector<INTERNAL_USE_Mouse_Event> occured_mouse_events = INTERNAL_USE_getMouseEvents();
+		
+	for(const INTERNAL_USE_Mouse_Event& ms_ev : occured_mouse_events)
+		INTERNAL_USE_checkEvent(ms_ev);
+}
 
 
 void Backend__Scrollbar::INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event& mouse_event)
@@ -1424,7 +1477,7 @@ void Backend__Scrollbar::INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event&
 		!mb.m_to_move_buf
 		)
 	{
-		gs::lastError("||INTERAL|| : in 'Backend__Scrollbar::INTERNAL_USE_checkEvents()', after 'INTERNAL_USE_getMembersPtrs_forEventProcessing()', have invalid ptr.");
+		gs::lastError("||INTERNAL|| : in 'Backend__Scrollbar::INTERNAL_USE_checkEvents()', after 'INTERNAL_USE_getMembersPtrs_forEventProcessing()', have invalid ptr.");
 		return;
 	}
 	bool& m_mouse_clicked_in = *mb.m_mouse_clicked_in;
@@ -1437,7 +1490,7 @@ void Backend__Scrollbar::INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event&
 	static Rect moveable_thing_area;
 
 	//Définition de la zone globale de la scrollbar, et de l'élément amovible.
-	setAreaRects(area, moveable_thing_area);
+	getAreaRects(area, moveable_thing_area);
 
 
 	const uint32_t& event_type = mouse_event.type;
@@ -1467,6 +1520,7 @@ void Backend__Scrollbar::INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event&
 		}
 	}
 }
+
 
 
 

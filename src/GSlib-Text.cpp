@@ -441,7 +441,7 @@ void Rendered_Str_Bank::clear(bool free_memory)
 	if(free_memory)
 		for(auto [key, texture] : m_bank)
 			if(texture)
-				destroyTexture(texture);
+				gs::destroyTexture(texture);
 
 	m_bank.clear();
 }
@@ -466,7 +466,7 @@ Text_Line::Text_Line(Rendered_Str_Bank* bank)
 }
 
 
-bool Text_Line::initAll(Renderer* ren, Font& font, Rendered_Str_Bank& bank, const char* font_path, uint16_t ptsize, uint32_t fg_rgba_col)
+bool Text_Line::initAll(Renderer* ren, Font& font, Rendered_Str_Bank& bank, const std::string& font_path, uint16_t ptsize, uint32_t fg_rgba_col)
 {
 	//'Text_Line::initAll()' initialise le font et la banque (si pas déjà fait), afin de pouvoir être utilisés par le gs::Text_Line.
 
@@ -929,7 +929,7 @@ bool Text_Line::show(Renderer* ren, int start_x, char tabulation_size, Vec2i up_
 	int curr_x = m_pos.x;
 	int max_x = m_pos.x + m_size.x-1;
 
-	start_x = ((start_x < 0) ? 0 : start_x); //La marge pour savoir à quel caractère commencer à dessiner.
+	start_x = ((start_x < 0) ? 0 : start_x); //Le scrolling horizontal (en pixel) //La marge pour savoir à quel caractère commencer à dessiner.
 	int start_x_count = 0;
 	bool is_visible = false;
 
@@ -6470,6 +6470,58 @@ int Text_Window::getFoldedLinesCount()
 
 	return m_blocks_folder.getHiddenLinesCount(-1);
 }
+
+
+
+
+
+
+//------------------------------------------------------------------------------//
+//------------------------------------------------------------------------------//
+//------------------------------------------------------------------------------//
+//------------------------------------------------------------------------------//
+//------------------------------------------------------------------------------//
+//------------------------------------------------------------------------------//
+//------------------------------------------------------------------------------//
+//------------------------------------------------------------------------------//
+
+
+bool Text_Line_Self_Contained::init_TLSC(Renderer* ren, const std::string& font_path, uint16_t ptsize, uint32_t fg_rgba_col)
+{
+	if(isInit_TLSC())
+	{
+		gs::lastError("||Warning|| in 'Text_Line_Self_Contained::init_TLSC()', already init.");
+		return false;
+	}
+
+	bool success = this->initAll(ren, m_self_font, m_self_str_bank_instance, font_path, ptsize, fg_rgba_col);
+	if(success)
+		return true;
+	
+	gs::lastError("from 'Text_Line_Self_Contained::init_TLSC()' : ", gs::lastError());
+	return false;
+}
+
+
+bool Text_Line_Self_Contained::changeFont_TLSC(const std::string& font_path)
+{
+	if(not isInit_TLSC())
+	{
+		gs::lastError("||Warning|| in 'Text_Line_Self_Contained::changeFont_TLSC()', not yet init.");
+		return false;
+	}
+
+	bool success = m_self_font.try_changeFontSource(font_path);
+	if(success)
+	{
+		m_self_str_bank_instance.clear(true);
+		return true;
+	}
+
+	gs::lastError("from 'Text_Line_Self_Contained::changeFont_TLSC()' : ", gs::lastError());
+	return false;
+}
+
 
 
 

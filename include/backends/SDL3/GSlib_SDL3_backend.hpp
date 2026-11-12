@@ -85,7 +85,7 @@ Surface* textureToSurface(Renderer* ren, Texture* tex);
 Texture* surfaceToTexture(Renderer* ren, Surface* surface);
 bool drawLines_INTERNAL(Renderer* ren, const FPoint* points, int pts_count, const Color& col, Blend_Mode* b_mode);
 
-void widgetsProcessEvent(SDL_Event& ev);
+void scrollbarsAndBtnsProcessEvent(SDL_Event& ev);
 
 
 
@@ -204,12 +204,29 @@ class Backend__Text_Window
 
 
 
+class Backend__Button
+{
+    public:
+        void processEvent(const SDL_Event& ev, bool* INTERNAL__click_catched=nullptr);
+
+    protected:
+        struct INTERNAL__membersTransfer
+        {
+            Vec2<float>* m_pos = nullptr;
+			Vec2<float>* m_size = nullptr;
+            bool* m_is_down = nullptr;
+            bool* m_mouse_in = nullptr;
+        };
+        virtual void INTERNAL_USE_getMembersPtrs_forEventProcessing(INTERNAL__membersTransfer& ptrs)=0;
+};
+
+
 
 class Backend__Scrollbar
 {
     public:
         void processEvent(const SDL_Event& ev);
-        virtual void setAreaRects(Rect& area, Rect& moveable_thing_area) const = 0;
+        virtual void getAreaRects(Rect& area, Rect& moveable_thing_area) const = 0;
 
     protected:
         struct INTERNAL__membersTransfer

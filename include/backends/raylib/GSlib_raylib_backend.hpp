@@ -4,10 +4,7 @@
 
 #include <raylib/raylib.h>
 #include <iostream>
-//#include <vector>
-//#include <string>
-//#include <cmath>
-//#include <unordered_map>
+
 
 struct _skip_arg_global_scope_struct_t_
 {};
@@ -141,8 +138,8 @@ class Backend__Game
         void backendDestr() {};
        
 		//Pour la compatibilité entre backends :
-			Renderer* ren() const;
-			Window* win() const;
+			Renderer* ren();
+			Window* win();
 
 			bool skip_vsync_error_msg=false;
 
@@ -150,8 +147,8 @@ class Backend__Game
         bool isInit{false};
         bool is_main_game{true};
 
-        Window *win_{nullptr};
-		Renderer *ren_{nullptr};
+        Window win_;
+		Renderer ren_;
 		Surface *win_icon{nullptr};
 
 		int Win_w;
@@ -204,19 +201,49 @@ class Backend__Text_Window
 //_____________________________________________________________________
 
 struct INTERNAL_USE_Mouse_Event;
-void INTERNAL_USE_checkWidgetsEvent();
+void INTERNAL_USE_checkScrollbarsAndBtnsEvent();
+
+
+
+class Backend__Button
+{
+    public:
+        //void processEvent(...); -> non utilisée pour le backend raylib
+
+	protected:
+
+		friend void INTERNAL_USE_checkScrollbarsAndBtnsEvent();
+		
+		void INTERNAL_USE_checkEvents(); 
+		void INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event& mouse_event, 
+									bool* INTERNAL__click_catched=nullptr); //Homologue à processEvent()
+
+
+        struct INTERNAL__membersTransfer
+        {
+            Vec2<float>* m_pos = nullptr;
+			Vec2<float>* m_size = nullptr;
+            bool* m_is_down = nullptr;
+            bool* m_mouse_in = nullptr;
+        };
+        virtual void INTERNAL_USE_getMembersPtrs_forEventProcessing(INTERNAL__membersTransfer& ptrs)=0;
+};
 
 
 class Backend__Scrollbar
 {
-	friend void INTERNAL_USE_checkWidgetsEvent();
+	
 
     public:
         //void processEvent(...); -> non utilisée pour le backend raylib
-        virtual void setAreaRects(Rect& area, Rect& moveable_thing_area) const = 0;
+        virtual void getAreaRects(Rect& area, Rect& moveable_thing_area) const = 0;
 
 	protected:
-		void INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event& mouse_event);
+	
+		friend void INTERNAL_USE_checkScrollbarsAndBtnsEvent();
+
+		void INTERNAL_USE_checkEvents(); 
+		void INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event& mouse_event); //Homologue à processEvent()
 
 		struct INTERNAL__membersTransfer
         {
