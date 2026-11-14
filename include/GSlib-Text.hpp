@@ -715,6 +715,12 @@ class Text_Window : public Backend__Text_Window
 class Text_Line_Self_Contained : public Text_Line
 {
 	public:
+		Text_Line_Self_Contained()=default;
+		~Text_Line_Self_Contained();
+		Text_Line_Self_Contained(const Text_Line_Self_Contained&)=delete;
+		Text_Line_Self_Contained& operator=(const Text_Line_Self_Contained&)=delete;
+		Text_Line_Self_Contained(Text_Line_Self_Contained&&) noexcept =default;
+		Text_Line_Self_Contained& operator=(Text_Line_Self_Contained&&) noexcept =default;
 
 		bool init_TLSC(Renderer* ren, const std::string& font_path, uint16_t ptsize=28, uint32_t fg_rgba_col=0xE0E0E0FFu);
 		bool isInit_TLSC() const {return m_self_font.isInit() and getBank() != nullptr;}

@@ -22,6 +22,8 @@ class Scrollbar;
 	Scrollbar& scbr(int id, bool* is_ok=nullptr);
 	Scrollbar& scbr(const std::string& id, bool* is_ok=nullptr);
 
+	bool setBtnsFontPath(uint8_t target_internal_font_idx, const std::string& path);
+
 	void turnOff0IDBtnWarning();
 	void turnOn0IDBtnWarning();
 	void turnOff0IDScbrWarning();
@@ -29,6 +31,7 @@ class Scrollbar;
 
 	void setNextScrollbarsAndBtnsTargetGroup(int group_id);
 	void setNextScrollbarsAndBtnsTargetGroup(const std::string& group_id);
+	
 	void setScrollbarsAndBtnsGroupActiveState(int group_id, bool active);
 	void setScrollbarsAndBtnsGroupActiveState(const std::string& group_id, bool active);
 	bool getScrollbarsAndBtnsGroupActiveState(int group_id);
@@ -81,10 +84,17 @@ struct Btn_Param //Les caractéristiques visuelles et autres, d'un bouton
 	//c'est la texture qui est affichée (et non 'idle_color' ou 'down_color'), et potentiellement, en fonction des tuiles mentionnées.
 	//La couleur de la souris s'applique par dessus ce qui est affiché.
 
+	std::string idle_text; //Les textes à afficher, selon l'état.
+	std::string down_text;
+	uint16_t font_size=22u; //ptsize du texte - à savoir que c'est bornée par la taille en y du bouton.
+	Color text_color={224,224,224,255};
+	uint8_t font_idx=0u; //indice du font à utiliser parmi les BTNS_FONTS_COUNT disponibles.
+	
+
 	//-----------------------------------------------
 
-	void (*down_click_callback)(const Button& btn, void* user_data)=nullptr; //Fonction appelée lorsque le bouton est clické.
-	void (*release_callback)(const Button& btn, void* user_data)=nullptr; //Fonction appelée lorsque le bouton est relaché.
+	void (*down_click_callback)(Button& btn, void* user_data)=nullptr; //Fonction appelée lorsque le bouton est clické.
+	void (*release_callback)(Button& btn, void* user_data)=nullptr; //Fonction appelée lorsque le bouton est relaché.
 	void* callback_arg=nullptr;
 
 };
@@ -94,6 +104,8 @@ bool newBtn(int id, Vec2f pos=Vec2f(0.f,0.f), const Btn_Param& param=Btn_Param()
 bool newBtn(const std::string& id, Vec2f pos=Vec2f(0.f,0.f), const Btn_Param& param=Btn_Param());
 bool newBtn(int id, FRect area, Btn_Param param=Btn_Param());
 bool newBtn(const std::string& id, FRect area, Btn_Param param=Btn_Param());
+bool newBtn(Vec2f pos, const Btn_Param& param=Btn_Param()); //Avec 'id==0'
+bool newBtn(FRect area, Btn_Param param=Btn_Param()); //Avec 'id==0'
 
 
 namespace wi
@@ -101,14 +113,14 @@ namespace wi
 	enum Button_State {BTN_IDLE, BTN_DOWN, BTN_MOUSE_IN};
 	enum Action_Val {DOWN_CLICK=BK_EVENT_MOUSE_BUTTON_DOWN, UP_CLICK=BK_EVENT_MOUSE_BUTTON_UP};
 	enum Quick_Btns_Field {CHECK_AREA, BUTTONS};
-	enum Btn_Utils{BTN_NONE_ID=0}; //'BTN_NONE_ID' sert à mentionner une valeur libre, celle qui ne compte pas dans les identifiants.
+	enum Btn_Utils{BTN_NONE_ID=0, BTNS_FONTS_COUNT=3}; //'BTN_NONE_ID' sert à mentionner une valeur libre, celle qui ne compte pas dans les identifiants.
 
 }
 
 class Button : public Backend__Button
 {
 	public :
-		Button() = default;
+		Button()=default;
 		~Button();
 		Button(const Button&)=delete;
 		Button& operator=(const Button&)=delete;
@@ -139,9 +151,12 @@ class Button : public Backend__Button
 
 		void setColor(wi::Button_State target_state, Color c);
 
-		bool setDownClickCallback(void (*callback)(const Button&, void*));
-		bool setUpClickCallback(void (*callback)(const Button&, void*));
+		bool setDownClickCallback(void (*callback)(Button&, void*));
+		bool setReleaseCallback(void (*callback)(Button&, void*));
 		void setCallbackArg(void* user_data) {m.callback_arg = user_data;};
+
+		void setText(wi::Button_State target_state, const std::string& text);
+		
 
 
 
@@ -151,9 +166,10 @@ class Button : public Backend__Button
 		bool isDown() const;
 		Color getColor(wi::Button_State target_state) const;
 		bool isMouseIn() const;
-		bool downClicked() const {return not m_is_prev_down and m_is_down;}
-		bool released() const {return m_is_prev_down and not m_is_down;} //Si le bouton vient d'être relaché.
-		
+		bool downClicked() const {return m_down_clicked;}
+		bool released() const {return m_released;} //Si le bouton vient d'être relaché.
+		const std::string& getText(wi::Button_State target_state) const;
+
 
 	protected:
 
@@ -163,6 +179,8 @@ class Button : public Backend__Button
 		bool  m_is_down=false;
 		bool  m_mouse_in=false;
 		bool  m_is_prev_down=false; //reçoit la précédente valeur de 'm_is_down' à chaque à chaque mise à jour. Cela permet de détecter les clicks (bas, et hauts).
+		bool m_down_clicked=false;
+		bool m_released=false;
 
 		Btn_Param m; //Les caratérisiques.
 
@@ -176,6 +194,7 @@ class Button : public Backend__Button
 			ptrs.m_size = &m.size;
             ptrs.m_is_down= &m_is_down;
             ptrs.m_mouse_in = &m_mouse_in;
+			ptrs.enabled = m_enabled;
 		}
 
 
@@ -225,6 +244,7 @@ struct Scbr_Param //Les caractéristiques d'un scrollbar
 //Je remets ça ici pour pouvoir utliser '=Scbr_Param()'.
 bool newScbr(int id, const Scbr_Param& param=Scbr_Param());
 bool newScbr(const std::string& id, const Scbr_Param& param=Scbr_Param());
+bool newScbr(const Scbr_Param& param=Scbr_Param()); //Avec 'id==0'
 
 
 class Scrollbar : public Backend__Scrollbar

@@ -1,7 +1,10 @@
 #include "GSlib-Widget.hpp"
-#include "GSlib-Geo.hpp"
 #include "GSlib-Text.hpp"
+#include "GSlib-Geo.hpp"
+#include <filesystem>
+#include <array>
 #include <map>
+
 
 
 namespace gs
@@ -58,10 +61,55 @@ struct SBIM // "Scrollbars and Buttons Internal Management"
 		bool m_btn_id_0_warning=true; //Pour la sécurité
 		bool m_scbr_id_0_warning=true;
 
-		Text_Line_Self_Contained m_tlsc; //Pour l'affichage des textes.
-		std::string m_btns_font_path="C:/Windows/Fonts/consola.ttf"; 
+		struct Font_Info
+		{
+			std::string path;
+			bool up_to_date=false;
+		};
+
+		std::array<Text_Line_Self_Contained, wi::BTNS_FONTS_COUNT> m_tlsc; //Pour l'affichage des textes, et avec 'wi::BTNS_FONTS_COUNT' fonts différents autorisés.
+		std::array<Font_Info, wi::BTNS_FONTS_COUNT> m_btns_font_info;
 
 	//----------------------------------------------------------
+	
+	~SBIM()=default;
+	SBIM()
+	{
+		std::vector<std::string> default_fonts{
+		#if defined(_WIN32)
+			"C:/Windows/Fonts/ARLRDBD.TTF",
+			"C:/Windows/Fonts/constan.ttf",
+			"C:/Windows/Fonts/COOPBL.TTF",
+		
+		#elif defined(__ANDROID__)
+			"/system/fonts/Roboto-Regular.ttf",
+
+		#elif defined(__APPLE__) && defined(__MACH__)
+			"/System/Library/Fonts/Supplemental/Arial.ttf",
+
+		#elif defined(__linux__)
+			"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+
+		#endif
+		};
+
+		for(int i=0; i<m_btns_font_info.size(); ++i)
+		{
+			if(i < default_fonts.size())
+				m_btns_font_info[i].path = default_fonts[i];
+			else
+			{
+				if(default_fonts.size())
+					m_btns_font_info[i].path = default_fonts.front();
+			}
+
+			m_btns_font_info[i].up_to_date = false;
+		}
+	}
+	
+
+	//----------------------------------------------------------
+
 
 	struct R
 	{
@@ -136,35 +184,60 @@ struct SBIM // "Scrollbars and Buttons Internal Management"
 
 	//--------------------------------------------//
 	
-	void initTheTLSC(Renderer* ren)
+	void showBtnText(Renderer* ren, const std::string& text, FRect allowed_area, uint16_t font_size, Color text_color, uint8_t font_idx)
 	{
+		if(text.length()==0) return;
+
 		#ifdef GSLIB_RAYLIB_BACKEND
 		return; //Car sur raylib ça ne fonctionnne pas correctement au moment où j'écris ce commentaire.
 		#endif //GSLIB_RAYLIB_BACKEND
 
-		if(not m_tlsc.isInit_TLSC())
-			m_tlsc.init_TLSC(ren, m_btns_font_path, 28, 0xE0E0E0FFu);
-	}
-	
-	void showBtnText(Renderer* ren, const std::string& text, FRect allowed_area)
-	{
-		#ifdef GSLIB_RAYLIB_BACKEND
-		return; //Car sur raylib ça ne fonctionnne pas correctement au moment où j'écris ce commentaire.
-		#endif //GSLIB_RAYLIB_BACKEND
+		if(m_tlsc.empty())//Sécurité
+		{
+			gs::lastError("||Internal warning||, in 'SBIM::showBtnText()', 'm_tlsc' must not be empty ('wi::BTNS_FONTS_COUNT' must be > 0).");
+			return;
+		}
 
-		if(not m_tlsc.isInit_TLSC()) return;
+		font_idx = (font_idx < m_tlsc.size()) ? font_idx : 0;
+		Text_Line_Self_Contained& tlsc = m_tlsc.at(font_idx); //Cet indice opère avec les TLSC car les fonts sont dans les TLSC (chaque TLSC a son font).
+		Font_Info& font_info = m_btns_font_info.at(font_idx);
+
+		if(not tlsc.isInit_TLSC())
+		{
+			if(tlsc.init_TLSC(ren, font_info.path, font_size, gs::u32RGBA(text_color)))
+				font_info.up_to_date = true;
+		}
+
+		if(not tlsc.isInit_TLSC()) return;
+
+		//-------------------------
+
+		if(not font_info.up_to_date) //pour prendre en compte les appels de 'setBtnsFontPath()'
+		{
+			if(not tlsc.changeFont_TLSC(font_info.path))
+				gs::lastError("from 'SBIM::showBtnText()' : ", gs::lastError());
+
+			font_info.up_to_date=true; //IMPORTANT - et dans les deux cas (même si ça n'a pas fonctionné).
+		}
+
+
+		//-----------------------------------------------------------------------//
+		//-----------------------------------------------------------------------//
 		
-		m_tlsc.setMaxSize(Vec2u(allowed_area.w, allowed_area.h));
-		m_tlsc.setText(text);
-		Vec2u line_size = m_tlsc.update();
+		if(font_size > allowed_area.h) font_size = allowed_area.h;
+
+		tlsc.setMaxSize(Vec2u(allowed_area.w, allowed_area.h));
+		tlsc.setText(text);
+		tlsc.clearRules(FONT_STYLE_NORMAL, font_size, gs::u32RGBA(text_color), 0u);
+		Vec2u line_size = tlsc.update();
 
 		//Centrage du text dans la zone:
 		Vec2i area_pos(allowed_area.x, allowed_area.y);
 		Vec2i line_pos(area_pos.x+allowed_area.w/2 -line_size.x/2,
 				area_pos.y+allowed_area.h/2 -line_size.y/2);
 
-		m_tlsc.setPos(line_pos);
-		m_tlsc.show(ren);
+		tlsc.setPos(line_pos);
+		tlsc.show(ren);
 	}
 };
 SBIM _sbim_;
@@ -223,6 +296,31 @@ Scrollbar& scbr(const std::string& id, bool* is_ok)
 }
 
 
+bool setBtnsFontPath(uint8_t target_internal_font_idx, const std::string& path)
+{
+	if(target_internal_font_idx >= _sbim_.m_btns_font_info.size())
+	{
+		gs::lastError("||Warning|| in 'setBtnsFontPath()', invalid font idx. [must be < ", gs::str(_sbim_.m_btns_font_info.size())+"]");
+		return false;
+	}
+
+	std::filesystem::directory_entry ent{
+		std::filesystem::path(path)
+	};
+	
+	bool path_ok = ent.exists() and ent.is_regular_file(); //Même si ce n'est pas une garanti, c'est un début.
+	
+	if(not path_ok)
+	{
+		gs::lastError("||Warning|| in 'setBtnsFontPath()', invalid font path. [given path : \"",path+"\"]");
+		return false;
+	}
+
+	_sbim_.m_btns_font_info.at(target_internal_font_idx).path = path;
+	_sbim_.m_btns_font_info.at(target_internal_font_idx).up_to_date = false;
+	return true;
+}
+
 
 void turnOff0IDBtnWarning(){_sbim_.m_btn_id_0_warning = false;}
 void turnOn0IDBtnWarning(){_sbim_.m_btn_id_0_warning = true;}
@@ -267,14 +365,80 @@ Group& INTERNAL_USE_getGroup(const std::string& group_id, bool& is_ok)
 }
 
 
+std::vector<Button*> INTERNAL_USE_getGroupBtns(Group& group)
+{
+	SBIM::R res;
+	std::vector<Button*> btns;
+	for(int id : group.int_btns)
+	{
+		if(_sbim_.containsBtn(id, res)) //Sécurité
+			btns.push_back(&res.int_btn_it->second);
+	}
+
+	for(const std::string& id : group.str_btns)
+	{
+		if(_sbim_.containsBtn(id, res)) //Sécurité
+			btns.push_back(&res.str_btn_it->second);
+	}
+
+	return btns;
+}
+
+
+std::vector<Scrollbar*> INTERNAL_USE_getGroupScbrs(Group& group)
+{
+	SBIM::R res;
+	std::vector<Scrollbar*> scbrs;
+	for(int id : group.int_scbrs)
+	{
+		if(_sbim_.containsScbr(id, res)) //Sécurité
+			scbrs.push_back(&res.int_scbr_it->second);
+	}
+
+	for(const std::string& id : group.str_scbrs)
+	{
+		if(_sbim_.containsScbr(id, res)) //Sécurité
+			scbrs.push_back(&res.str_scbr_it->second);
+	}
+
+	return scbrs;
+}
+
+
 void setScrollbarsAndBtnsGroupActiveState(int group_id, bool active)
 {
-	bool is_ok; INTERNAL_USE_getGroup(group_id, is_ok).is_active = active;
+	bool is_ok;
+	Group& group = INTERNAL_USE_getGroup(group_id, is_ok);
+	
+	if(is_ok)
+	{
+		group.is_active = active;
+
+		//Bonus pratique
+		for(Button* btn : INTERNAL_USE_getGroupBtns(group))
+			if(btn) btn->update(0.00001f);
+		
+		for(Scrollbar* bar : INTERNAL_USE_getGroupScbrs(group))
+			if(bar) bar->update();
+	}
 }
 
 void setScrollbarsAndBtnsGroupActiveState(const std::string& group_id, bool active)
 {
-	bool is_ok; INTERNAL_USE_getGroup(group_id, is_ok).is_active = active;
+	bool is_ok;
+	Group& group = INTERNAL_USE_getGroup(group_id, is_ok);
+	
+	if(is_ok)
+	{
+		group.is_active = active;
+
+		//Bonus pratique
+		for(Button* btn : INTERNAL_USE_getGroupBtns(group))
+			if(btn) btn->update(0.00001f);
+		
+		for(Scrollbar* bar : INTERNAL_USE_getGroupScbrs(group))
+			if(bar) bar->update();
+	}
 }
 
 
@@ -421,6 +585,30 @@ bool newBtn(const std::string& id, FRect area, Btn_Param param)
 	Vec2f pos; gs::splitFRect(area, pos, param.size);
 	return newBtn(id, pos, param);
 }
+
+bool newBtn(Vec2f pos, const Btn_Param& param)
+{
+	bool prev_val_of_warning = _sbim_.m_btn_id_0_warning;
+	turnOff0IDBtnWarning();
+
+	bool success = newBtn(0, pos, param);
+
+	if(prev_val_of_warning) turnOn0IDBtnWarning();
+	return success;
+}
+
+bool newBtn(FRect area, Btn_Param param)
+{
+	bool prev_val_of_warning = _sbim_.m_btn_id_0_warning;
+	turnOff0IDBtnWarning();
+
+	bool success = newBtn(0, area, param);
+
+	if(prev_val_of_warning) turnOn0IDBtnWarning();
+	return success;
+}
+
+
 
 
 
@@ -619,6 +807,19 @@ bool newScbr(const std::string& id, const Scbr_Param& param)
 }
 
 
+bool newScbr(const Scbr_Param& param)
+{
+	bool prev_val_of_warning = _sbim_.m_scbr_id_0_warning;
+	turnOff0IDScbrWarning();
+
+	bool success = newScbr(0, param);
+
+	if(prev_val_of_warning) turnOn0IDScbrWarning();
+	return success;
+}
+
+
+
 void INTERNAL_USE_showScbrsOfGroup(const Group& group, Renderer* ren)
 {
 	if(not group.is_active) return;
@@ -701,7 +902,7 @@ std::vector<Scrollbar*> INTERNAL_USE_getActiveScbrs()
 void updateScrollbarsAndBtns(float dt)
 {
 	#ifdef GSLIB_RAYLIB_BACKEND
-	INTERNAL_USE_checkScrollbarsAndBtnsEvent();
+	INTERNAL_USE_checkScrollbarsAndBtnsEvents();
 	#endif // GSLIB_RAYLIB_BACKEND
 
 	bool INTERNAL__check_events = false; //Pour ne pas traiter les events deux fois par élément.
@@ -830,6 +1031,7 @@ bool Button::setTexture(Texture* texture, bool acquire_unloading_responsibility)
 
 void Button::update(float dt, bool INTERNAL__check_events)
 {
+	if(not enabled()) return;
 	if(not m_is_init) return;
 
 	#ifdef GSLIB_RAYLIB_BACKEND
@@ -837,15 +1039,18 @@ void Button::update(float dt, bool INTERNAL__check_events)
 			INTERNAL_USE_checkEvents();
 	#endif // GSLIB_RAYLIB_BACKEND
 
-	bool down_click_occured = not m_is_prev_down and m_is_down;
-	bool released = m_is_prev_down and not m_is_down;
+	m_down_clicked = not m_is_prev_down and m_is_down;
+	m_released = m_is_prev_down and not m_is_down;
+
+	//Note: je me suis rendu compte qu'il faut mémoriser ces deux états, car après ce 'update()', 'm_is_prev_down' n'est plus fiable pour les déterminer. Ainsi leur getters respectifs pourront rendre une valeur correcte jusqu'au prochain appel.
+	//Sans cette mémorisation, leurs getters seraient erronés depuis l'appel de ce 'update()' jusqu'à la fin de la frame (en tout cas jusqu'à la prochaine mise à jour de 'm_is_down' sans 'm_is_prev_down'). 
 
 	m_is_prev_down = m_is_down;
 
-	if(down_click_occured and m.down_click_callback)
+	if(m_down_clicked and m.down_click_callback)
 		m.down_click_callback(*this, m.callback_arg);
 
-	if(released and m.release_callback)
+	if(m_released and m.release_callback)
 		m.release_callback(*this, m.callback_arg);
 }
 
@@ -914,11 +1119,11 @@ bool Button::show(Renderer* ren) const
 
 	//Dessin du texte
 	{
-		if(not _sbim_.m_tlsc.isInit_TLSC())
-			_sbim_.initTheTLSC(ren);
 		
-		if(_sbim_.m_tlsc.isInit_TLSC())
-			_sbim_.showBtnText(ren, "test", area);
+		if(m_is_down)
+			_sbim_.showBtnText(ren, m.down_text, area, m.font_size, m.text_color, m.font_idx);
+		else
+			_sbim_.showBtnText(ren, m.idle_text, area, m.font_size, m.text_color, m.font_idx);
 		
 	}
 
@@ -997,7 +1202,8 @@ void Button::setColor(wi::Button_State target_state, Color c)
 		case wi::BTN_IDLE: m.idle_color = c; break;
 		case wi::BTN_DOWN: m.down_color = c; break;
 		case wi::BTN_MOUSE_IN: m.mouse_in_color = c; break;
-		default: break;
+		default: gs::lastError("In 'Button::setColor()', invalid arg 'target_state'.");
+			break;
 	}
 }
 
@@ -1005,7 +1211,7 @@ void Button::setColor(wi::Button_State target_state, Color c)
 
 
 
-bool Button::setDownClickCallback(void (*callback)(const Button&, void*))
+bool Button::setDownClickCallback(void (*callback)(Button&, void*))
 {
 	if(not m_is_init)
 	{
@@ -1017,17 +1223,38 @@ bool Button::setDownClickCallback(void (*callback)(const Button&, void*))
 	return true;
 }
 
-bool Button::setUpClickCallback(void (*callback)(const Button&, void*))
+bool Button::setReleaseCallback(void (*callback)(Button&, void*))
 {
 	if(not m_is_init)
 	{
-		gs::lastError("In 'Button::setUpClickCallback()', button not yet init.");
+		gs::lastError("In 'Button::setReleaseCallback()', button not yet init.");
 		return false;
 	}
 
 	m.release_callback = callback;
 	return true;
 }
+
+
+
+
+void Button::setText(wi::Button_State target_state, const std::string& text)
+{
+	if(not m_is_init)
+	{
+		gs::lastError("In 'Button::setText()', button not yet init.");
+		return;
+	}
+
+	switch(target_state)
+	{
+		case wi::BTN_IDLE: m.idle_text = text; break;
+		case wi::BTN_DOWN: m.down_text = text; break;
+		default: gs::lastError("In 'Button::setText()', invalid arg 'target_state' here.");
+			break;
+	}
+}
+
 
 
 
@@ -1059,8 +1286,18 @@ Color Button::getColor(wi::Button_State target_state) const
 bool Button::isMouseIn() const {return m_mouse_in;}
 
 
+const std::string& Button::getText(wi::Button_State target_state) const
+{
+	switch(target_state)
+	{
+		case wi::BTN_IDLE: return m.idle_text;
+		case wi::BTN_DOWN: return m.down_text;
+		default: break;
+	}
 
-
+	static std::string default_str;
+	return default_str;
+}
 
 
 

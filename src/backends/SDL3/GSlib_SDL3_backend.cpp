@@ -2333,6 +2333,9 @@ void Backend__Button::processEvent(const SDL_Event& ev, bool* INTERNAL__click_ca
 		gs::lastError("||INTERNAL|| : in 'Backend__Button::processEvent()', after 'INTERNAL_USE_getMembersPtrs_forEventProcessing()', have invalid ptr.");
 		return;
 	}
+
+	if(not mb.enabled) return; //'mb.enabled' n'est pas un ptr.
+
 	Vec2<float>& m_pos = *mb.m_pos;
 	Vec2<float>& m_size = *mb.m_size;
 	bool& m_is_down = *mb.m_is_down;

@@ -216,6 +216,7 @@ class Backend__Button
 			Vec2<float>* m_size = nullptr;
             bool* m_is_down = nullptr;
             bool* m_mouse_in = nullptr;
+            bool enabled=true;
         };
         virtual void INTERNAL_USE_getMembersPtrs_forEventProcessing(INTERNAL__membersTransfer& ptrs)=0;
 };

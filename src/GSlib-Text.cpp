@@ -6485,6 +6485,12 @@ int Text_Window::getFoldedLinesCount()
 //------------------------------------------------------------------------------//
 //------------------------------------------------------------------------------//
 
+Text_Line_Self_Contained::~Text_Line_Self_Contained()
+{
+	m_self_str_bank_instance.clear(true);
+}
+
+
 
 bool Text_Line_Self_Contained::init_TLSC(Renderer* ren, const std::string& font_path, uint16_t ptsize, uint32_t fg_rgba_col)
 {

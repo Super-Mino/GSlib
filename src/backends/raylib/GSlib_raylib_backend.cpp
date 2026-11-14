@@ -821,7 +821,7 @@ bool Font::try_changeFontSource(const std::string& target_font_path)
 		std::filesystem::path(target_font_path)
 	};
 	
-	bool success = ent.exists() and ent.is_regular_file();
+	bool success = ent.exists() and ent.is_regular_file(); //Même si ce n'est pas une garanti, c'est un début.
 	
 	if(success)
 		m_font_path = target_font_path;
@@ -1363,7 +1363,7 @@ std::vector<Button*> INTERNAL_USE_getActiveBtns();
 std::vector<Scrollbar*> INTERNAL_USE_getActiveScbrs();
 
 
-void INTERNAL_USE_checkScrollbarsAndBtnsEvent()
+void INTERNAL_USE_checkScrollbarsAndBtnsEvents()
 {
 	std::vector<Button*> buttons_vec = INTERNAL_USE_getActiveBtns();
 	std::vector<Scrollbar*> scrollbars_vec = INTERNAL_USE_getActiveScbrs();
@@ -1421,6 +1421,9 @@ void Backend__Button::INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event& mo
 		gs::lastError("||INTERNAL|| : in 'Backend__Button::processEvent()', after 'INTERNAL_USE_getMembersPtrs_forEventProcessing()', have invalid ptr.");
 		return;
 	}
+
+	if(not mb.enabled) return; //'mb.enabled' n'est pas un ptr.
+
 	Vec2<float>& m_pos = *mb.m_pos;
 	Vec2<float>& m_size = *mb.m_size;
 	bool& m_is_down = *mb.m_is_down;

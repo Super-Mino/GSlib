@@ -201,7 +201,7 @@ class Backend__Text_Window
 //_____________________________________________________________________
 
 struct INTERNAL_USE_Mouse_Event;
-void INTERNAL_USE_checkScrollbarsAndBtnsEvent();
+void INTERNAL_USE_checkScrollbarsAndBtnsEvents();
 
 
 
@@ -212,7 +212,7 @@ class Backend__Button
 
 	protected:
 
-		friend void INTERNAL_USE_checkScrollbarsAndBtnsEvent();
+		friend void INTERNAL_USE_checkScrollbarsAndBtnsEvents();
 		
 		void INTERNAL_USE_checkEvents(); 
 		void INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event& mouse_event, 
@@ -225,6 +225,7 @@ class Backend__Button
 			Vec2<float>* m_size = nullptr;
             bool* m_is_down = nullptr;
             bool* m_mouse_in = nullptr;
+			bool enabled=true;
         };
         virtual void INTERNAL_USE_getMembersPtrs_forEventProcessing(INTERNAL__membersTransfer& ptrs)=0;
 };
@@ -240,7 +241,7 @@ class Backend__Scrollbar
 
 	protected:
 	
-		friend void INTERNAL_USE_checkScrollbarsAndBtnsEvent();
+		friend void INTERNAL_USE_checkScrollbarsAndBtnsEvents();
 
 		void INTERNAL_USE_checkEvents(); 
 		void INTERNAL_USE_checkEvent(const INTERNAL_USE_Mouse_Event& mouse_event); //Homologue à processEvent()
