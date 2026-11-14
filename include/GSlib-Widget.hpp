@@ -12,7 +12,7 @@ struct Scbr_Param;
 class Button;
 class Scrollbar;
 
-//Pour la gestion interne des srollbars et boutons:
+//Pour la gestion interne des scrollbars et boutons:
 
 	//void scrollbarsAndBtnsProcessEvent(...); -> selon le backend utilisé
 	void updateScrollbarsAndBtns(float dt);
