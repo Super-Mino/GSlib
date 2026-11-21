@@ -405,7 +405,7 @@ std::vector<Scrollbar*> INTERNAL_USE_getGroupScbrs(Group& group)
 }
 
 
-void setScrollbarsAndBtnsGroupActiveState(int group_id, bool active)
+bool setScrollbarsAndBtnsGroupActiveState(int group_id, bool active)
 {
 	bool is_ok;
 	Group& group = INTERNAL_USE_getGroup(group_id, is_ok);
@@ -421,9 +421,13 @@ void setScrollbarsAndBtnsGroupActiveState(int group_id, bool active)
 		for(Scrollbar* bar : INTERNAL_USE_getGroupScbrs(group))
 			if(bar) bar->update();
 	}
+	else
+		gs::lastError("||Warning|| in 'setScrollbarsAndBtnsGroupActiveState(int)', group not found. [group id : ", gs::str(group_id)+"]");
+
+	return is_ok;
 }
 
-void setScrollbarsAndBtnsGroupActiveState(const std::string& group_id, bool active)
+bool setScrollbarsAndBtnsGroupActiveState(const std::string& group_id, bool active)
 {
 	bool is_ok;
 	Group& group = INTERNAL_USE_getGroup(group_id, is_ok);
@@ -439,6 +443,10 @@ void setScrollbarsAndBtnsGroupActiveState(const std::string& group_id, bool acti
 		for(Scrollbar* bar : INTERNAL_USE_getGroupScbrs(group))
 			if(bar) bar->update();
 	}
+	else
+		gs::lastError("||Warning|| in 'setScrollbarsAndBtnsGroupActiveState(str)', group not found. [group id : \"", group_id+"\"]");
+
+	return is_ok;
 }
 
 

@@ -52,7 +52,7 @@ struct Shape_P //Shape parameters.
 struct Rotation_P
 {
 	float rot_rad=0.f;
-	gs::Vec2f anchor={0,0};
+	gs::Vec2f anchor={0,0}; //En pourcentage, relativement au rectangle.
 	bool clockwise=true;
 };
 

@@ -531,6 +531,7 @@ class Camera2D_Base
 		bool screenShakingEnabled() const {return m_screen_shaking_enabled;}
 		void enableScreenShaking() {m_screen_shaking_enabled = true;}
 		void disableScreenShaking();
+		void setScreenShakingActiveState(bool state);
 		
 		void setFilterColor(gs::Color c) {filter = c;}
 		gs::Color filter{0,0,0,0}; //Une couleur (attendue généralement transparente) à afficher par dessus le rendu.

@@ -2303,7 +2303,7 @@ void scrollbarsAndBtnsProcessEvent(SDL_Event& ev)
 	bool click_catched=false;
 	
 	for(Button* btn : buttons_vec)
-	if(btn)
+	if(btn) //Sécurité
 	{
 		btn->processEvent(ev, &click_catched);
 		

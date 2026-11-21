@@ -32,8 +32,8 @@ class Scrollbar;
 	void setNextScrollbarsAndBtnsTargetGroup(int group_id);
 	void setNextScrollbarsAndBtnsTargetGroup(const std::string& group_id);
 	
-	void setScrollbarsAndBtnsGroupActiveState(int group_id, bool active);
-	void setScrollbarsAndBtnsGroupActiveState(const std::string& group_id, bool active);
+	bool setScrollbarsAndBtnsGroupActiveState(int group_id, bool active);
+	bool setScrollbarsAndBtnsGroupActiveState(const std::string& group_id, bool active);
 	bool getScrollbarsAndBtnsGroupActiveState(int group_id);
 	bool getScrollbarsAndBtnsGroupActiveState(const std::string& group_id);
 

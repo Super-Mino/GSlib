@@ -2149,6 +2149,8 @@ void Camera2D_Base::update(float dt)
 
 void Camera2D_Base::addScreenShaking(float duration)
 {
+	if(not m_screen_shaking_enabled) return;
+	
 	m_screen_shakings.emplace_back();
 	m_screen_shakings.back().timer=duration;
 	m_screen_shakings.back().a = gs::Vec2f(gs::random(0.5f, 1.5f), gs::random(0.5f, 1.5f))*2.f;
@@ -2171,147 +2173,13 @@ void Camera2D_Base::disableScreenShaking()
 	m_screen_shakings.clear();
 }
 
-
-
-
-
-//____________________________________________________________________________________
-//____________________________________________________________________________________
-//____________________________________________________________________________________
-//____________________________________________________________________________________
-//________________________FONCTIONS  DU MIXER (MUSIQUES)______________________________
-//____________________________________________________________________________________
-//____________________________________________________________________________________
-//____________________________________________________________________________________
-
-
-/*
-	bool Game::initMixer(int frequency, uint16_t format, int channels, int chunksize)
-	{
-
-		if(initMix_is_allowed)
-		{
-			if(Mix_OpenAudio( frequency, format, channels, chunksize) == 0)
-			{
-				mixActive_ = true;
-				initMix_is_allowed = false;
-				allocated_channels += channels;
-				return true;
-			}
-
-			std::cout << "\t|| Erreur || `initMixer()' failed : "<< Mix_GetError() << std::endl;
-			mixActive_ = false;
-			return false;
-		}
-		else
-		{
-			std::cout << "\t|| Warning || `initMixer()' already used. Close the Mixer befor trying " << std::endl;
-			return false;
-		}
-	}
-
-//-------------------------------------------------------------------------------//
-//-------------------------------------------------------------------------------//
-
-
-	void Game::closeMixer()
-	{
-		if(mixActive_)
-		{
-			Mix_CloseAudio();
-			mixActive_ = false;
-			initMix_is_allowed = true;
-		}
-	}
-
-
-//-------------------------------------------------------------------------------//
-//-------------------------------------------------------------------------------//
-
-
-int  Game::getFree_channel()
+void Camera2D_Base::setScreenShakingActiveState(bool state)
 {
-	if(allocated_channels == free_channel_)						//allocated_channels est le nombre de channel alloué, free_channel est le numero du plus petit channel libre mais aussi le nb de channel occupés
-	{
-		allocated_channels = Mix_AllocateChannels(allocated_channels+1);
-	}
-
-	free_channel_+= 1;
-
-	return free_channel_-1;
-};
-//-------------------------------------------------------------------------------//
-//-------------------------------------------------------------------------------//
-//-------------------------------------------------------------------------------//
-//-------------------------------------------------------------------------------//
-//-------------------------------------------------------------------------------//
-//-------------------------------------------------------------------------------//
-
-
-Music::Music()
-{music = nullptr; volume = 50; };
-
-//------------------------------------------------------------
-
-Music::~Music(){ Mix_FreeChunk(music); }
-
-//------------------------------------------------------------
-
-bool Music::load(Game *g, const char *file)
-{
-	if(music != nullptr)
-		Mix_FreeChunk(music);
-	music = nullptr;
-
-	music = Mix_LoadWAV(file); selfChannel = g->getFree_channel();
-
-	if(music != nullptr)
-		return true;
-	return false;
-};
-
-//------------------------------------------------------------
-
-void Music::play(int boucle)
-{
-	if(!Mix_Playing(selfChannel))
-		Mix_PlayChannel(selfChannel, music, boucle);
+	if(state)
+		enableScreenShaking();
+	else
+		disableScreenShaking();
 }
-
-//------------------------------------------------------------
-
-void Music::stop(){ Mix_HaltChannel(selfChannel); };
-
-//------------------------------------------------------------
-
-void Music::pause(){ Mix_Pause(selfChannel); };
-
-//------------------------------------------------------------
-
-void Music::resume(){ Mix_Resume(selfChannel); };
-
-//------------------------------------------------------------
-
-void Music::setVolume(int vol)
-{
-	volume = vol;
-	Mix_Volume(selfChannel, volume);
-}
-
-//------------------------------------------------------------
-
-void Music::incrVolume(int val)
-{
-	volume += val;
-	Mix_Volume(selfChannel, volume);
-}
-
-
-
-*/
-
-
-
 
 
 
